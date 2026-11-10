@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "bash scripts/dev.sh",
     "lint": "npm run lint --prefix frontend",
-    "test": "npm test --prefix frontend && node --test tests/login.test.mjs",
+    "test": "npm test --prefix frontend && node --test tests/*.test.mjs",
     "build": "npm run build --prefix frontend",
     "seed": "node scripts/seed.mjs",
     "e2e": "npm test --prefix e2e",

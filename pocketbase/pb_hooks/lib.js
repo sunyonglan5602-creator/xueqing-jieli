@@ -70,13 +70,41 @@ function publicUser(record) {
 
 function writeAudit(actorId, action, targetId, detail) {
   const collection = $app.findCollectionByNameOrId("audit_logs")
-  const record = new Record(collection, {
-    actor: actorId,
+  const data = {
     action,
     target_id: targetId || "",
     detail: detail || {},
-  })
-  $app.save(record)
+  }
+  if (actorId) data.actor = actorId
+  $app.save(new Record(collection, data))
+}
+
+function recordEntries(record) {
+  const raw = record.get("authorization_record")
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(toString(raw))
+    return parsed && parsed.entries ? parsed.entries : []
+  } catch (err) {
+    return []
+  }
+}
+
+function rememberAuthorization(auth, record) {
+  let original = null
+  try {
+    original = record.original()
+  } catch (err) {
+    original = null
+  }
+  const before = original ? original.get("authorization_registered") === true : false
+  const after = record.get("authorization_registered") === true
+  if (before === after) return ""
+  const entries = recordEntries(record)
+  const action = after ? "register" : "revoke"
+  entries.push({ action, by: auth.id, at: new Date().toISOString() })
+  record.set("authorization_record", { entries, pending_action: action, pending_by: auth.id })
+  return action
 }
 
 function accountsInScope(auth) {
@@ -138,6 +166,106 @@ function noteFailure(user) {
   return locked
 }
 
+function uuidv7() {
+  let time = Date.now().toString(16)
+  while (time.length < 12) time = "0" + time
+  time = time.slice(-12)
+  const rest = $security.randomStringWithAlphabet(20, "0123456789abcdef")
+  const chars = (time + rest).slice(0, 32).split("")
+  chars[12] = "7"
+  chars[16] = "8"
+  const hex = chars.join("")
+  return hex.slice(0, 8) + "-" + hex.slice(8, 12) + "-" + hex.slice(12, 16) + "-" + hex.slice(16, 20) + "-" + hex.slice(20)
+}
+
+function sameOrg(auth, record) {
+  const org = record.collection().name === "organizations" ? record.id : record.get("org")
+  return Boolean(org) && org === auth.get("org")
+}
+
+function canRead(auth, record) {
+  if (!auth || auth.get("must_change_password")) return false
+  const name = record.collection().name
+  const rank = rankOf(auth)
+  if (rank === "platform_admin") return name === "organizations" || name === "schools"
+  if (rank === "education_bureau_viewer") return false
+  if (rank === "parent") {
+    if (name === "parent_student_bindings") return record.get("parent") === auth.id
+    if (name === "students") return String(record.get("active_parent_ids") || "").indexOf(auth.id) >= 0
+    return false
+  }
+  if (!sameOrg(auth, record)) return false
+  return rank === "org_admin" || rank === "school_admin" || rank === "teacher"
+}
+
+function bindingMayBeActive(record) {
+  if (record.get("status") !== "已生效") return true
+  if (record.get("relationship_type") !== "其他照料人") return true
+  return record.get("authorization_registered") === true
+}
+
+function bindGuard(e) {
+  const auth = currentUser(e)
+  if (!auth) return e.next()
+  if (auth.get("must_change_password")) throw new ForbiddenError("请先修改初始口令")
+  if (rankOf(auth) !== "school_admin") throw new NotFoundError("不存在")
+  let student = null
+  try {
+    student = $app.findRecordById("students", e.record.get("student"))
+  } catch (err) {
+    throw new NotFoundError("不存在")
+  }
+  if (student.get("org") !== auth.get("org") || student.get("school") !== auth.get("school")) {
+    throw new NotFoundError("不存在")
+  }
+  e.record.set("org", student.get("org"))
+  const action = rememberAuthorization(auth, e.record)
+  if (!bindingMayBeActive(e.record)) throw new BadRequestError("其他照料人未登记监护人授权书，绑定不能生效")
+  if (action && e.record.id) {
+    writeAudit(auth.id, action === "revoke" ? "authorization_revoke" : "authorization_register", e.record.id, {
+      student: e.record.get("student"),
+    })
+  }
+  return e.next()
+}
+
+function prepareLearningRecord(auth, record) {
+  if (rankOf(auth) !== "teacher" && rankOf(auth) !== "school_admin") throw new ForbiddenError("不能记学情")
+  const previous = String(record.get("previous_uid") || "")
+  if (previous) {
+    let old = null
+    try {
+      old = $app.findFirstRecordByFilter("learning_records", "uid = {:uid}", { uid: previous })
+    } catch (err) {
+      throw new NotFoundError("不存在")
+    }
+    if (old.get("org") !== auth.get("org")) throw new NotFoundError("不存在")
+    record.set("student", old.get("student"))
+    record.set("version", Number(old.get("version") || 1) + 1)
+    record.set("previous_uid", old.get("uid"))
+  } else {
+    record.set("version", 1)
+    record.set("previous_uid", "")
+  }
+  record.set("org", auth.get("org"))
+  record.set("author", auth.id)
+  record.set("uid", uuidv7())
+}
+
+function refreshActiveParents(studentId) {
+  const student = $app.findRecordById("students", studentId)
+  const bindings = $app.findRecordsByFilter("parent_student_bindings", "student = {:id}", "", 0, 0, { id: studentId })
+  const ids = []
+  for (const binding of bindings) {
+    if (binding.get("status") !== "已生效") continue
+    const kind = binding.get("relationship_type")
+    const allowed = kind === "法定监护人" || (kind === "其他照料人" && binding.get("authorization_registered") === true)
+    if (allowed) ids.push(binding.get("parent"))
+  }
+  student.set("active_parent_ids", ids.length ? "," + ids.join(",") + "," : "")
+  $app.save(student)
+}
+
 module.exports = {
   NEXT_RANK,
   PROTECTED_FIELDS: [
@@ -162,4 +290,10 @@ module.exports = {
   accountScope,
   targetInScope,
   noteFailure,
+  uuidv7,
+  canRead,
+  bindingMayBeActive,
+  refreshActiveParents,
+  bindGuard,
+  prepareLearningRecord,
 }

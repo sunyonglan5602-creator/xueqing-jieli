@@ -84,8 +84,13 @@ await ensureUser("demo-teacher-a", {
   school: schoolA.id,
   must_change_password: true,
 })
-await ensureUser("demo-parent-a", {
+const parentA = await ensureUser("demo-parent-a", {
   display_name: "演示家长甲",
+  roles: ["parent"],
+  must_change_password: false,
+})
+const parentB = await ensureUser("demo-parent-b", {
+  display_name: "演示家长乙",
   roles: ["parent"],
   must_change_password: false,
 })
@@ -95,5 +100,46 @@ await ensureUser("demo-edu", {
   must_change_password: false,
 })
 
+const classA = await ensure("classes", "name='演示一班'", { name: "演示一班", org: orgA.id, school: schoolA.id })
+const student1 = await ensure("students", "display_name='演示生01'", {
+  display_name: "演示生01",
+  uid: "01900000-0000-7000-8000-000000000001",
+  org: orgA.id,
+  school: schoolA.id,
+  active_parent_ids: "",
+})
+const student2 = await ensure("students", "display_name='演示生02'", {
+  display_name: "演示生02",
+  uid: "01900000-0000-7000-8000-000000000002",
+  org: orgA.id,
+  school: schoolA.id,
+  active_parent_ids: "",
+})
+await ensure("parent_student_bindings", `parent='${parentA.id}' && student='${student1.id}'`, {
+  parent: parentA.id,
+  student: student1.id,
+  org: orgA.id,
+  status: "已生效",
+  relationship_type: "法定监护人",
+  authorization_registered: false,
+})
+await ensure("parent_student_bindings", `parent='${parentB.id}' && student='${student1.id}'`, {
+  parent: parentB.id,
+  student: student1.id,
+  org: orgA.id,
+  status: "待核实",
+  relationship_type: "其他照料人",
+  authorization_registered: false,
+})
+await ensure("parent_student_bindings", `parent='${parentA.id}' && student='${student2.id}'`, {
+  parent: parentA.id,
+  student: student2.id,
+  org: orgA.id,
+  status: "待核实",
+  relationship_type: "法定监护人",
+  authorization_registered: false,
+})
+
 console.log(`假数据已就绪。演示口令：${demoPassword}`)
+console.log(`演示班 ${classA.id}，演示生 ${student1.id} / ${student2.id}`)
 console.log(`协会 ${orgA.id} / ${orgB.id}，学校 ${schoolA.id} / ${schoolB.id}`)
