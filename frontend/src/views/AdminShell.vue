@@ -1,6 +1,7 @@
 <script setup>
 import { onMounted, ref } from "vue"
 import { useRouter } from "vue-router"
+import BatchConsent from "../components/BatchConsent.vue"
 import ConsentForm from "../components/ConsentForm.vue"
 import EnrollmentPanel from "../components/EnrollmentPanel.vue"
 import OrgStudents from "../components/OrgStudents.vue"
@@ -183,6 +184,7 @@ onMounted(load)
         <SchoolAccessForm v-if="rank === 'school_admin'" />
         <StudentArchive v-if="rank === 'school_admin'" />
         <ConsentForm v-if="rank === 'school_admin'" />
+        <BatchConsent v-if="rank === 'school_admin'" />
         <EnrollmentPanel v-if="rank === 'school_admin' || rank === 'org_admin'" />
         <VolunteerForm v-if="rank === 'school_admin' || rank === 'org_admin'" />
         <RegionTools v-if="rank === 'org_admin' || rank === 'school_admin'" />

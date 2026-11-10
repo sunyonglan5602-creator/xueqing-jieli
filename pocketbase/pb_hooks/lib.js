@@ -630,6 +630,7 @@ function saveConsent(auth, body) {
   record.set("consented_on", body.consentedOn || "")
   record.set("explain_method", explainMethod)
   record.set("signer_role", signerRole)
+  record.set("oral_explained", body.oralExplained === true)
   record.set("operator", auth.id)
   $app.save(record)
   if (status !== "已同意") releaseConsentBindings(student.id)
@@ -644,6 +645,57 @@ function saveConsent(auth, body) {
     status,
     message: status === "已撤回" ? "已停止新录入，请学校按 7.3 处理已有数据" : "",
   }
+}
+
+function saveConsentBatch(auth, body) {
+  if (rankOf(auth) !== "school_admin") throw new NotFoundError("不存在")
+  let klass = null
+  try {
+    klass = $app.findRecordById("classes", String(body.classId || ""))
+  } catch (err) {
+    throw new NotFoundError("不存在")
+  }
+  if (klass.get("school") !== auth.get("school") || klass.get("org") !== auth.get("org")) throw new NotFoundError("不存在")
+  const rows = body.rows
+  if (!rows || typeof rows.length !== "number" || rows.length < 1) throw new BadRequestError("请填写本班回执")
+  const saved = []
+  const errors = []
+  for (let i = 0; i < rows.length; i += 1) {
+    const row = rows[i] || {}
+    const rowNumber = i + 1
+    const signer = String(row.signerRole || "")
+    const problems = []
+    if (signer !== "父母" && signer !== "祖辈" && signer !== "其他照料人") problems.push("请填写谁签的")
+    if (row.oralExplained !== true && row.oralExplained !== false) problems.push("请注明有没有当面口头讲解")
+    if (!String(row.receiptNo || "").trim()) problems.push("请填写回执编号")
+    if (timeOf(row.consentedOn) === 0) problems.push("请填写日期")
+    let student = null
+    try {
+      student = $app.findRecordById("students", String(row.studentId || ""))
+    } catch (err) {
+      student = null
+    }
+    if (!student || student.get("current_class") !== klass.id || student.get("school") !== auth.get("school")) problems.push("学生不在这个班")
+    if (problems.length) {
+      errors.push({ row: rowNumber, message: problems.join("、") })
+      continue
+    }
+    try {
+      const result = saveConsent(auth, {
+        studentId: student.id,
+        status: "已同意",
+        receiptNo: row.receiptNo,
+        consentedOn: row.consentedOn,
+        explainMethod: row.oralExplained === true ? "口头讲解 + 纸质回执" : "书面",
+        signerRole: signer,
+        oralExplained: row.oralExplained === true,
+      })
+      saved.push({ row: rowNumber, id: result.id, studentId: student.id })
+    } catch (err) {
+      errors.push({ row: rowNumber, message: String(err) })
+    }
+  }
+  return { saved, errors }
 }
 
 function recordStudents(auth) {
@@ -1155,6 +1207,7 @@ module.exports = {
   assertVolunteer,
   CONSENT_TEMPLATE,
   saveConsent,
+  saveConsentBatch,
   recordStudents,
   prepareVolunteerProfile,
   prepareGrant,

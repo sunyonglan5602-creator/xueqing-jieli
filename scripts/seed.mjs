@@ -73,16 +73,34 @@ await ensureUser("demo-org-b", {
 await ensureUser("demo-school-a", {
   display_name: "演示小学甲管理员",
   roles: ["school_admin", "teacher"],
+  teacher_type: "长期支教",
   org: orgA.id,
   school: schoolA.id,
   must_change_password: false,
 })
-await ensureUser("demo-teacher-a", {
+const teacherA = await ensureUser("demo-teacher-a", {
   display_name: "演示老师甲",
   roles: ["teacher"],
+  teacher_type: "长期支教",
   org: orgA.id,
   school: schoolA.id,
   must_change_password: true,
+})
+const teacherShort = await ensureUser("demo-teacher-short", {
+  display_name: "演示短期老师",
+  roles: ["teacher"],
+  teacher_type: "短期支教",
+  org: orgA.id,
+  school: schoolA.id,
+  must_change_password: false,
+})
+const teacherLocal = await ensureUser("demo-teacher-local", {
+  display_name: "演示在编老师",
+  roles: ["teacher"],
+  teacher_type: "在编或特岗教师",
+  org: orgA.id,
+  school: schoolA.id,
+  must_change_password: false,
 })
 const parentA = await ensureUser("demo-parent-a", {
   display_name: "演示家长甲",
@@ -100,9 +118,24 @@ await ensureUser("demo-edu", {
   must_change_password: false,
 })
 
-const classA = await ensure("classes", "name='演示一班'", { name: "演示一班", org: orgA.id, school: schoolA.id })
+const schoolA2 = await ensure("schools", "name='演示小学甲二'", {
+  name: "演示小学甲二",
+  org: orgA.id,
+  division_code: "110101",
+  township: "演示东乡",
+  area: "演示东片",
+})
+const schoolB2 = await ensure("schools", "name='演示小学乙二'", { name: "演示小学乙二", org: orgB.id })
+const classA = await ensure("classes", "name='演示一班'", {
+  name: "演示一班",
+  org: orgA.id,
+  school: schoolA.id,
+  grades: ["三年级", "四年级"],
+})
 const student1 = await ensure("students", "display_name='演示生01'", {
   display_name: "演示生01",
+  grade: "三年级",
+  current_class: classA.id,
   uid: "01900000-0000-7000-8000-000000000001",
   org: orgA.id,
   school: schoolA.id,
@@ -110,11 +143,30 @@ const student1 = await ensure("students", "display_name='演示生01'", {
 })
 const student2 = await ensure("students", "display_name='演示生02'", {
   display_name: "演示生02",
+  grade: "四年级",
+  current_class: classA.id,
   uid: "01900000-0000-7000-8000-000000000002",
   org: orgA.id,
   school: schoolA.id,
   active_parent_ids: "",
 })
+const classPairs = [
+  [schoolA, orgA, "演示甲校二班"],
+  [schoolA2, orgA, "演示甲二一班"],
+  [schoolA2, orgA, "演示甲二二班"],
+  [schoolB, orgB, "演示乙校一班"],
+  [schoolB, orgB, "演示乙校二班"],
+  [schoolB2, orgB, "演示乙二一班"],
+  [schoolB2, orgB, "演示乙二二班"],
+]
+for (const [school, org, name] of classPairs) {
+  await ensure("classes", `name='${name}'`, {
+    name,
+    org: org.id,
+    school: school.id,
+    grades: ["三年级"],
+  })
+}
 await ensure("parent_student_bindings", `parent='${parentA.id}' && student='${student1.id}'`, {
   parent: parentA.id,
   student: student1.id,
@@ -138,6 +190,55 @@ await ensure("parent_student_bindings", `parent='${parentA.id}' && student='${st
   status: "待核实",
   relationship_type: "法定监护人",
   authorization_registered: false,
+})
+
+for (const teacher of [teacherA, teacherShort, teacherLocal]) {
+  await ensure("teacher_profiles", `user='${teacher.id}'`, {
+    user: teacher.id,
+    org: orgA.id,
+    school: schoolA.id,
+    crime_check_no: "演示回执",
+    crime_check_date: "2026-01-01 00:00:00.000Z",
+    training_note: "已完成岗前见习",
+    confidentiality_accepted: true,
+    duty: "独立任课",
+  })
+}
+for (const student of [student1, student2]) {
+  await ensure("consents", `student='${student.id}'`, {
+    student: student.id,
+    org: orgA.id,
+    school: schoolA.id,
+    status: "已同意",
+    receipt_no: `演示回执-${student.display_name}`,
+    consented_on: "2026-01-02 00:00:00.000Z",
+    explain_method: "口头讲解 + 纸质回执",
+    signer_role: "父母",
+    oral_explained: true,
+    operator: teacherA.id,
+  })
+}
+await ensure("class_memberships", `student='${student1.id}' && class='${classA.id}'`, {
+  student: student1.id,
+  class: classA.id,
+  org: orgA.id,
+  started_on: "2026-09-01 00:00:00.000Z",
+})
+await ensure("class_memberships", `student='${student2.id}' && class='${classA.id}'`, {
+  student: student2.id,
+  class: classA.id,
+  org: orgA.id,
+  started_on: "2026-09-01 00:00:00.000Z",
+})
+await ensure("learning_records", `uid='01900000-0000-7000-8000-000000000101'`, {
+  uid: "01900000-0000-7000-8000-000000000101",
+  body: "演示记录：课堂听写有两处错字",
+  version: 1,
+  org: orgA.id,
+  student: student1.id,
+  class: classA.id,
+  subject: "语文",
+  author: teacherA.id,
 })
 
 console.log(`假数据已就绪。演示口令：${demoPassword}`)

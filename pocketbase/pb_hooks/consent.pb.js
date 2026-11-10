@@ -13,6 +13,13 @@ routerAdd("POST", "/api/xueqing/consents", (e) => {
   return e.json(200, lib.saveConsent(auth, body))
 })
 
+routerAdd("POST", "/api/xueqing/consent-batch", (e) => {
+  const lib = require(__hooks + "/lib.js")
+  const auth = lib.requireReadyUser(e)
+  const body = e.requestInfo().body || {}
+  return e.json(200, lib.saveConsentBatch(auth, body))
+})
+
 routerAdd("GET", "/api/xueqing/record-students", (e) => {
   const lib = require(__hooks + "/lib.js")
   const auth = lib.requireReadyUser(e)
