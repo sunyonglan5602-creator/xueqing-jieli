@@ -1,6 +1,7 @@
 <script setup>
 import { onMounted, ref } from "vue"
 import { useRouter } from "vue-router"
+import ConsentForm from "../components/ConsentForm.vue"
 import EnrollmentPanel from "../components/EnrollmentPanel.vue"
 import OrgStudents from "../components/OrgStudents.vue"
 import PhaseMenu from "../components/PhaseMenu.vue"
@@ -181,6 +182,7 @@ onMounted(load)
       <template v-if="!blocked">
         <SchoolAccessForm v-if="rank === 'school_admin'" />
         <StudentArchive v-if="rank === 'school_admin'" />
+        <ConsentForm v-if="rank === 'school_admin'" />
         <EnrollmentPanel v-if="rank === 'school_admin' || rank === 'org_admin'" />
         <VolunteerForm v-if="rank === 'school_admin' || rank === 'org_admin'" />
         <RegionTools v-if="rank === 'org_admin' || rank === 'school_admin'" />

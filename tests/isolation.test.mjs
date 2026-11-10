@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { after, before, test } from "node:test"
-import { api, login, registerVolunteer, startPocketBase } from "./pb.mjs"
+import { api, login, registerConsent, registerVolunteer, startPocketBase } from "./pb.mjs"
 
 const PASSWORD = "Demo-Pass-0000"
 const UID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
@@ -290,6 +290,8 @@ test("P0-02 跨租户不可读，家长只读已生效的孩子，其他照料�
   const afterUnbind = await api(pb.base, `/api/collections/students/records/${studentA2.id}`, { token: tokenParentB })
   assert.equal(afterUnbind.status, 404)
 
+  const consent = await registerConsent(pb.base, tokenA, studentA.id)
+  assert.equal(consent.status, 200, JSON.stringify(consent.data))
   const created = await api(pb.base, "/api/collections/learning_records/records", {
     token: tokenTeacher,
     method: "POST",

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { after, before, test } from "node:test"
-import { api, login, startPocketBase } from "./pb.mjs"
+import { api, login, registerConsent, startPocketBase } from "./pb.mjs"
 
 const PASSWORD = "Demo-Pass-0000"
 let pb
@@ -85,6 +85,8 @@ test("P0-04 同名提示、复式班、导入行号和合并保留来源", async
     body: { displayName: "演示生04", grade: "四年级", classId: mixed.id },
   })
   assert.equal(fourthStudent.status, 200, JSON.stringify(fourthStudent.data))
+  const consent = await registerConsent(pb.base, token, first.data.id)
+  assert.equal(consent.status, 200, JSON.stringify(consent.data))
   const learned = await api(pb.base, "/api/collections/learning_records/records", {
     token,
     method: "POST",

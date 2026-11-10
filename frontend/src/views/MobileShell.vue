@@ -2,6 +2,7 @@
 import { NavBar } from "vant"
 import { useRouter } from "vue-router"
 import PhaseMenu from "../components/PhaseMenu.vue"
+import TeacherRoster from "../components/TeacherRoster.vue"
 import { highestRole } from "../shared/api.js"
 import { ROLE_LABELS } from "../shared/menu.js"
 import { useSessionStore } from "../stores/session.js"
@@ -30,6 +31,7 @@ function logout() {
       已进入业务页。
     </p>
     <p>{{ session.record?.display_name }}</p>
+    <TeacherRoster v-if="role === 'teacher'" />
     <PhaseMenu />
   </main>
 </template>

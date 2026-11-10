@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { after, before, test } from "node:test"
-import { api, login, registerVolunteer, startPocketBase } from "./pb.mjs"
+import { api, login, registerConsent, registerVolunteer, startPocketBase } from "./pb.mjs"
 
 const PASSWORD = "Demo-Pass-0000"
 let pb
@@ -202,6 +202,8 @@ test("P0-30 同协会内学校和班级互相隔离，P0-03 授权到期并审�
   })
   assert.equal(closed.status, 200, JSON.stringify(closed.data))
   assert.equal(closed.data.cross_subject_view, "关闭")
+  const consent = await registerConsent(pb.base, admins["a1"].token, students["a1-1"].id)
+  assert.equal(consent.status, 200, JSON.stringify(consent.data))
   const chinese = await api(pb.base, "/api/collections/learning_records/records", {
     token: tokenA11,
     method: "POST",

@@ -97,6 +97,21 @@ export async function api(base, path, { token, method = "GET", body } = {}) {
   return { status: response.status, data }
 }
 
+export async function registerConsent(base, token, studentId) {
+  return api(base, "/api/xueqing/consents", {
+    token,
+    method: "POST",
+    body: {
+      studentId,
+      status: "已同意",
+      receiptNo: "演示回执",
+      consentedOn: "2026-01-02 00:00:00.000Z",
+      explainMethod: "书面",
+      signerRole: "父母",
+    },
+  })
+}
+
 export async function registerVolunteer(base, token, userId) {
   return api(base, "/api/collections/teacher_profiles/records", {
     token,

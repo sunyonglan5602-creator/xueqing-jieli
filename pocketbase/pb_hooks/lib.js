@@ -552,9 +552,133 @@ function prepareLearningRecord(auth, record) {
     record.set("version", 1)
     record.set("previous_uid", "")
   }
+  assertConsent(record.get("student"))
   record.set("org", auth.get("org"))
   record.set("author", auth.id)
   record.set("uid", uuidv7())
+}
+
+const CONSENT_TEMPLATE = [
+  "监护人告知书模板",
+  "本模板列出告知必须写明的事项。正式全文以内容支持文档为准。",
+  "收集目的：用于学情记录、交接和家长知情，不用于排名或收费。",
+  "方式：由学校登记纸质回执，可书面填写，也可当面口头讲解后保留纸质回执。",
+  "范围：姓名或代称、年级、班级和学情记录。不采集身份证号、住址、医疗信息。",
+  "存储地点：保存在本校所属协会的系统中，不向其他协会开放。",
+  "期限：默认学生离校满 3 年。",
+  "到期处理：到期后按学校配置删除或匿名化，并留下处理记录。",
+  "安全措施：按学校隔离，查看和导出留审计。",
+  "拒绝的后果：拒绝或未登记时，不为该生记学情。",
+  "投诉渠道：向本校学校管理员或协会负责人提出。",
+  "更正删除方式：监护人可向学校要求查阅、更正或删除。",
+  "拒绝选项：监护人可以选择不同意。",
+  "保存期限：默认离校满 3 年。",
+].join("\n")
+
+function assertConsent(studentId) {
+  let rows = []
+  try {
+    rows = $app.findRecordsByFilter("consents", "student = {:student}", "", 1, 0, { student: studentId })
+  } catch (err) {
+    rows = []
+  }
+  if (!rows.length || rows[0].get("status") !== "已同意") throw new BadRequestError("未同意或未登记的学生不能记学情")
+}
+
+function releaseConsentBindings(studentId) {
+  const bindings = $app.findRecordsByFilter("parent_student_bindings", "student = {:student} && status = '已生效'", "", 0, 0, { student: studentId })
+  for (const binding of bindings) {
+    binding.set("status", "已解绑")
+    $app.save(binding)
+  }
+  if (bindings.length) refreshActiveParents(studentId)
+}
+
+function saveConsent(auth, body) {
+  if (rankOf(auth) !== "school_admin") throw new NotFoundError("不存在")
+  let student = null
+  try {
+    student = $app.findRecordById("students", String(body.studentId || ""))
+  } catch (err) {
+    throw new NotFoundError("不存在")
+  }
+  if (student.get("school") !== auth.get("school") || student.get("org") !== auth.get("org")) throw new NotFoundError("不存在")
+  const status = String(body.status || "")
+  if (status !== "已同意" && status !== "已拒绝" && status !== "已撤回") throw new BadRequestError("请选择同意状态")
+  const explainMethod = String(body.explainMethod || "")
+  const signerRole = String(body.signerRole || "")
+  const receiptNo = String(body.receiptNo || "").trim()
+  if (status === "已同意") {
+    if (!receiptNo) throw new BadRequestError("请填写回执编号")
+    if (timeOf(body.consentedOn) === 0) throw new BadRequestError("请填写日期")
+    if (explainMethod !== "书面" && explainMethod !== "口头讲解 + 纸质回执") throw new BadRequestError("请选择讲解方式")
+    if (signerRole !== "父母" && signerRole !== "祖辈" && signerRole !== "其他照料人") throw new BadRequestError("请选择签字人身份")
+  }
+  let rows = []
+  try {
+    rows = $app.findRecordsByFilter("consents", "student = {:student}", "", 1, 0, { student: student.id })
+  } catch (err) {
+    rows = []
+  }
+  const previous = rows.length ? rows[0].get("status") : "未登记"
+  const record = rows.length ? rows[0] : new Record($app.findCollectionByNameOrId("consents"), { student: student.id })
+  record.set("student", student.id)
+  record.set("org", student.get("org"))
+  record.set("school", student.get("school"))
+  record.set("status", status)
+  record.set("receipt_no", receiptNo)
+  record.set("consented_on", body.consentedOn || "")
+  record.set("explain_method", explainMethod)
+  record.set("signer_role", signerRole)
+  record.set("operator", auth.id)
+  $app.save(record)
+  if (status !== "已同意") releaseConsentBindings(student.id)
+  writeAudit(auth.id, "consent_changed", record.id, {
+    org: student.get("org"),
+    student: student.id,
+    from: previous,
+    to: status,
+  })
+  return {
+    id: record.id,
+    status,
+    message: status === "已撤回" ? "已停止新录入，请学校按 7.3 处理已有数据" : "",
+  }
+}
+
+function recordStudents(auth) {
+  const rank = rankOf(auth)
+  if (rank !== "teacher" && rank !== "school_admin") throw new NotFoundError("不存在")
+  let students = []
+  if (rank === "school_admin") {
+    students = $app.findRecordsByFilter("students", "school = {:school}", "display_name", 0, 0, { school: auth.get("school") })
+  } else {
+    const duties = $app.findRecordsByFilter("teaching_assignments", "teacher = {:teacher}", "", 0, 0, { teacher: auth.id })
+    const seen = {}
+    for (const duty of duties) {
+      if (!stillActive(duty) || seen[duty.get("class")]) continue
+      seen[duty.get("class")] = true
+      const rows = $app.findRecordsByFilter("students", "current_class = {:class}", "display_name", 0, 0, { class: duty.get("class") })
+      for (const row of rows) students.push(row)
+    }
+  }
+  const items = []
+  for (const student of students) {
+    let rows = []
+    try {
+      rows = $app.findRecordsByFilter("consents", "student = {:student}", "", 1, 0, { student: student.id })
+    } catch (err) {
+      rows = []
+    }
+    const consentStatus = rows.length ? rows[0].get("status") : "未登记"
+    items.push({
+      id: student.id,
+      display_name: student.get("display_name"),
+      consent_status: consentStatus,
+      recordable: consentStatus === "已同意",
+    })
+  }
+  return items
 }
 
 function prepareMembership(auth, record) {
@@ -1029,6 +1153,9 @@ module.exports = {
   prepareMembership,
   prepareAssignment,
   assertVolunteer,
+  CONSENT_TEMPLATE,
+  saveConsent,
+  recordStudents,
   prepareVolunteerProfile,
   prepareGrant,
   refreshRoster,

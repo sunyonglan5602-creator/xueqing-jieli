@@ -8,6 +8,9 @@
       </router-link>
     </p>
     <p>
+      <a href="/api/xueqing/consent-template">监护人告知书模板</a>
+    </p>
+    <p>
       <router-link to="/login">
         登录
       </router-link>
