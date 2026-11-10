@@ -1,0 +1,26 @@
+import { expect, test } from "@playwright/test"
+
+test("首登必须改密，学校管理员能在一分钟内重置老师口令", async ({ page }) => {
+  await page.goto("/login")
+  await page.getByLabel("账号").fill("demo-teacher-a")
+  await page.getByLabel("口令").fill("Demo-Pass-0000")
+  await page.getByRole("button", { name: "登录" }).click()
+  await expect(page).toHaveURL(/change-password/)
+  await expect(page.getByText("未修改初始口令不能进入业务页")).toBeVisible()
+  await page.getByLabel("原口令").fill("Demo-Pass-0000")
+  await page.getByLabel("新口令").fill("Demo-Pass-1111")
+  await page.getByRole("button", { name: "确认修改" }).click()
+  await expect(page).toHaveURL(/\/m$/)
+  await expect(page.getByText("已进入业务页")).toBeVisible()
+
+  await page.getByText("退出").click()
+  await page.getByLabel("账号").fill("demo-school-a")
+  await page.getByLabel("口令").fill("Demo-Pass-0000")
+  const started = Date.now()
+  await page.getByRole("button", { name: "登录" }).click()
+  await expect(page).toHaveURL(/\/admin$/)
+  const row = page.getByRole("row", { name: /demo-teacher-a/ })
+  await row.getByRole("button", { name: "重置口令" }).click()
+  await expect(page.getByText(/一次性口令：/)).toBeVisible()
+  expect(Date.now() - started).toBeLessThan(60_000)
+})

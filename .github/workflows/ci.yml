@@ -1,8 +1,9 @@
 name: ci
 
 on:
-  push:
   pull_request:
+  push:
+    branches: [main]
 
 jobs:
   check:
@@ -36,7 +37,7 @@ jobs:
         run: npm run lint --prefix frontend
 
       - name: 单测
-        run: npm test --prefix frontend
+        run: npm test
 
       - name: 构建
         run: npm run build --prefix frontend

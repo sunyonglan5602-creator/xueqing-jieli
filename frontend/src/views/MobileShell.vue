@@ -1,14 +1,25 @@
 <script setup>
 import { NavBar } from "vant"
+import { useRouter } from "vue-router"
+import { useSessionStore } from "../stores/session.js"
+
+const router = useRouter()
+const session = useSessionStore()
+
+function logout() {
+  session.logout()
+  router.push("/login")
+}
 </script>
 
 <template>
   <NavBar
     title="教师端"
-    left-arrow
-    @click-left="$router.push('/')"
+    left-text="退出"
+    @click-left="logout"
   />
   <main>
-    <p>手机端使用 Vant 默认样式。登录和业务页在后续变更里接上。</p>
+    <p>已进入业务页。</p>
+    <p>{{ session.record?.display_name }}</p>
   </main>
 </template>

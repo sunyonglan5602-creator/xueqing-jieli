@@ -36,7 +36,16 @@ npm run e2e       # Playwright 冒烟
 npm run seed
 ```
 
-种子脚本目前是骨架，不写入业务记录。
+种子只写假账号。先在 `.env` 填好超级用户，并保持 `npm run dev` 在跑。演示口令默认 `Demo-Pass-0000`。
+
+| 账号 | 角色 | 说明 |
+|---|---|---|
+| demo-platform | 平台管理员 | 已改过口令 |
+| demo-org-a / demo-org-b | 协会管理员 | 已改过口令 |
+| demo-school-a | 学校管理员，同时是老师 | 已改过口令 |
+| demo-teacher-a | 老师 | 第一次登录必须改口令 |
+| demo-parent-a | 家长 | 账号占位，绑定在下一个 PR |
+| demo-edu | 教育局查看者 | 只占位，没有业务权限 |
 
 ## 目录
 

@@ -47,7 +47,7 @@ if [[ -n "${PB_ENCRYPTION_KEY:-}" ]]; then
   ENC_ARGS=(--encryptionEnv PB_ENCRYPTION_KEY)
 fi
 
-"$BIN" "${ENC_ARGS[@]}" serve --http "$PB_HTTP" "${PB_COMMON[@]}" --dev --hooksWatch=false &
+"$BIN" "${ENC_ARGS[@]}" serve --http "$PB_HTTP" "${PB_COMMON[@]}" --automigrate=false --hooksWatch=false &
 PB_PID=$!
 
 cleanup() {
