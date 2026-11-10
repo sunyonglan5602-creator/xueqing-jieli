@@ -1,0 +1,42 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            e2e/package-lock.json
+
+      - name: 安装前端依赖
+        run: npm ci
+        working-directory: frontend
+
+      - name: 安装端到端依赖
+        run: npm ci
+        working-directory: e2e
+
+      - name: 核对直接依赖许可证
+        run: node scripts/check-licenses.mjs
+
+      - name: 下载并校验 PocketBase v0.40.6
+        run: bash scripts/download-pocketbase.sh
+
+      - name: lint
+        run: npm run lint --prefix frontend
+
+      - name: 单测
+        run: npm test --prefix frontend
+
+      - name: 构建
+        run: npm run build --prefix frontend
