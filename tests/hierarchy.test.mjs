@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { after, before, test } from "node:test"
-import { api, login, startPocketBase } from "./pb.mjs"
+import { api, login, registerVolunteer, startPocketBase } from "./pb.mjs"
 
 const PASSWORD = "Demo-Pass-0000"
 let pb
@@ -107,6 +107,8 @@ test("P0-30 同协会内学校和班级互相隔离，P0-03 授权到期并审�
         body: { student: student.data.id, class: created.data.id, org, started_on: "2020-01-01 00:00:00.000Z" },
       })
       assert.equal(membership.status, 200, JSON.stringify(membership.data))
+      const volunteer = await registerVolunteer(pb.base, token, teachers[classKey].id)
+      assert.equal(volunteer.status, 200, classKey + JSON.stringify(volunteer.data))
       const duty = await api(pb.base, "/api/collections/teaching_assignments/records", {
         token,
         method: "POST",
@@ -184,6 +186,8 @@ test("P0-30 同协会内学校和班级互相隔离，P0-03 授权到期并审�
     org: orgA.id,
     school: schools["a1"].id,
   })
+  const mathVolunteer = await registerVolunteer(pb.base, admins["a1"].token, math.id)
+  assert.equal(mathVolunteer.status, 200, JSON.stringify(mathVolunteer.data))
   const mathDuty = await api(pb.base, "/api/collections/teaching_assignments/records", {
     token: admins["a1"].token,
     method: "POST",

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { after, before, test } from "node:test"
-import { api, login, startPocketBase } from "./pb.mjs"
+import { api, login, registerVolunteer, startPocketBase } from "./pb.mjs"
 
 const PASSWORD = "Demo-Pass-0000"
 let pb
@@ -151,6 +151,8 @@ test("P0-35 老师类型必填且只用于分组，P0-38 区划可空并可按�
   })
   assert.equal(membership.status, 200, JSON.stringify(membership.data))
   for (const [token, teacherId, label] of [[readyShort, short.data.user.id, "短期"], [tokenLong, long.data.user.id, "长期"]]) {
+    const volunteer = await registerVolunteer(pb.base, tokenSchool, teacherId)
+    assert.equal(volunteer.status, 200, label + JSON.stringify(volunteer.data))
     const duty = await api(pb.base, "/api/collections/teaching_assignments/records", {
       token: tokenSchool,
       method: "POST",

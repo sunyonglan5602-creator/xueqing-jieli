@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { after, before, test } from "node:test"
-import { api, login, startPocketBase } from "./pb.mjs"
+import { api, login, registerVolunteer, startPocketBase } from "./pb.mjs"
 
 const PASSWORD = "Demo-Pass-0000"
 let pb
@@ -79,6 +79,8 @@ test("P0-17 审计不可删、可检索，敏感字段读写留痕，导出要�
     body: { student: student.id, class: classA.id, org: orgA.id },
   })
   assert.equal(enrolled.status, 200, JSON.stringify(enrolled.data))
+  const volunteer = await registerVolunteer(pb.base, tokenA, teacher.id)
+  assert.equal(volunteer.status, 200, JSON.stringify(volunteer.data))
   const duty = await api(pb.base, "/api/collections/teaching_assignments/records", {
     token: tokenA,
     method: "POST",

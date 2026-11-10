@@ -97,6 +97,21 @@ export async function api(base, path, { token, method = "GET", body } = {}) {
   return { status: response.status, data }
 }
 
+export async function registerVolunteer(base, token, userId) {
+  return api(base, "/api/collections/teacher_profiles/records", {
+    token,
+    method: "POST",
+    body: {
+      user: userId,
+      crime_check_no: "演示回执000",
+      crime_check_date: "2026-01-01 00:00:00.000Z",
+      training_note: "已完成岗前见习",
+      confidentiality_accepted: true,
+      duty: "独立任课",
+    },
+  })
+}
+
 export async function login(base, identity, password, collection = "users") {
   return api(base, `/api/collections/${collection}/auth-with-password`, {
     method: "POST",

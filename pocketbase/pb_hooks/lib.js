@@ -416,6 +416,11 @@ function canRead(auth, record) {
     if (rank === "org_admin") return true
     return rank === "school_admin" && record.get("school") === auth.get("school")
   }
+  if (name === "teacher_profiles") {
+    if (!sameOrg(auth, record)) return false
+    if (rank === "org_admin") return true
+    return rank === "school_admin" && record.get("school") === auth.get("school")
+  }
   if (name === "students" || name === "class_memberships" || name === "learning_records") return canReadStudentPiece(auth, record)
   if (name === "parent_student_bindings") {
     const student = $app.findRecordById("students", record.get("student"))
@@ -471,9 +476,49 @@ function bindGuard(e) {
   return e.next()
 }
 
+function missingVolunteerItems(profile) {
+  const missing = []
+  if (!profile || !String(profile.get("crime_check_no") || "").trim() || timeOf(profile.get("crime_check_date")) === 0) {
+    missing.push("违法犯罪记录查询回执")
+  }
+  if (!profile || !String(profile.get("training_note") || "").trim()) missing.push("岗前培训或见习记录")
+  if (!profile || profile.get("confidentiality_accepted") !== true) missing.push("保密承诺")
+  const duty = profile ? profile.get("duty") : ""
+  if (duty !== "独立任课" && duty !== "辅助教学") missing.push("任课安排")
+  return missing
+}
+
+function prepareVolunteerProfile(auth, record) {
+  if (rankOf(auth) !== "school_admin") throw new NotFoundError("不存在")
+  let teacher = null
+  try {
+    teacher = $app.findRecordById("users", record.get("user"))
+  } catch (err) {
+    throw new NotFoundError("不存在")
+  }
+  if (teacher.get("school") !== auth.get("school") || teacher.get("org") !== auth.get("org") || rolesOf(teacher).indexOf("teacher") < 0) {
+    throw new NotFoundError("不存在")
+  }
+  record.set("user", teacher.id)
+  record.set("org", teacher.get("org"))
+  record.set("school", teacher.get("school"))
+}
+
+function assertVolunteer(userId) {
+  let rows = []
+  try {
+    rows = $app.findRecordsByFilter("teacher_profiles", "user = {:user}", "", 1, 0, { user: userId })
+  } catch (err) {
+    rows = []
+  }
+  const missing = missingVolunteerItems(rows.length ? rows[0] : null)
+  if (missing.length) throw new BadRequestError("不能授予学情权限，缺少：" + missing.join("、"))
+}
+
 function prepareLearningRecord(auth, record) {
   const rank = rankOf(auth)
   if (rank !== "teacher" && rank !== "school_admin") throw new ForbiddenError("不能记学情")
+  if (rank === "teacher") assertVolunteer(auth.id)
   const previous = String(record.get("previous_uid") || "")
   if (previous) {
     let old = null
@@ -569,6 +614,7 @@ function prepareAssignment(auth, record) {
   record.set("subject", subject)
   record.set("org", klass.get("org"))
   record.set("school", klass.get("school"))
+  assertVolunteer(teacher.id)
 }
 
 function prepareGrant(auth, record) {
@@ -982,6 +1028,8 @@ module.exports = {
   prepareLearningRecord,
   prepareMembership,
   prepareAssignment,
+  assertVolunteer,
+  prepareVolunteerProfile,
   prepareGrant,
   refreshRoster,
   refreshClassTeachers,

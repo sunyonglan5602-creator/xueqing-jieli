@@ -13,7 +13,7 @@ routerUse((e) => {
   const name = parts[3]
   if (name === "wuyu_records") throw new NotFoundError("不存在")
   if (parts.length !== 6) return e.next()
-  const guarded = ["organizations", "schools", "classes", "students", "class_memberships", "learning_records", "parent_student_bindings", "handover_packages", "handover_reviews", "teaching_assignments", "detail_grants"]
+  const guarded = ["organizations", "schools", "classes", "students", "class_memberships", "learning_records", "parent_student_bindings", "handover_packages", "handover_reviews", "teaching_assignments", "detail_grants", "teacher_profiles"]
   if (guarded.indexOf(name) < 0) return e.next()
   let record = null
   try {

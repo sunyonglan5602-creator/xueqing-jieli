@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs"
+import { readdirSync, readFileSync, statSync } from "node:fs"
 import { resolve } from "node:path"
 import { describe, expect, it } from "vitest"
 import { ROLE_LABELS, phaseEntries, showsStudentDetail } from "../src/shared/menu.js"
@@ -20,6 +20,25 @@ describe("二期和三期入口", () => {
     expect(showsStudentDetail({ roles: ["education_bureau_viewer"] })).toBe(false)
     expect(showsStudentDetail({ roles: ["org_admin"] })).toBe(true)
     expect(ROLE_LABELS.education_bureau_viewer).toBe("教育局查看者")
+  })
+
+  it("没有向学生或家长收费的入口", () => {
+    const banned = ["收费", "付款", "募捐", "支付"]
+    const files = []
+    const walk = (dir) => {
+      for (const name of readdirSync(dir)) {
+        const full = resolve(dir, name)
+        if (statSync(full).isDirectory()) walk(full)
+        else if (name.endsWith(".vue") || name.endsWith(".js")) files.push(full)
+      }
+    }
+    walk(resolve(import.meta.dirname, "../src"))
+    for (const file of files) {
+      const source = readFileSync(file, "utf8")
+      for (const word of banned) expect(source.includes(word), file).toBe(false)
+    }
+    const form = readFileSync(resolve(import.meta.dirname, "../src/components/VolunteerForm.vue"), "utf8")
+    expect(form.includes("由学校依法查询，系统不做资格认定")).toBe(true)
   })
 
   it("一期界面不出现按乡镇或片区下钻", () => {

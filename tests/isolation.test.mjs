@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { after, before, test } from "node:test"
-import { api, login, startPocketBase } from "./pb.mjs"
+import { api, login, registerVolunteer, startPocketBase } from "./pb.mjs"
 
 const PASSWORD = "Demo-Pass-0000"
 const UID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
@@ -149,6 +149,8 @@ test("P0-02 跨租户不可读，家长只读已生效的孩子，其他照料�
     body: { student: studentA.id, class: classA.data.id, org: orgA.id },
   })
   assert.equal(enrolled.status, 200, JSON.stringify(enrolled.data))
+  const volunteer = await registerVolunteer(pb.base, tokenA, teacherA.id)
+  assert.equal(volunteer.status, 200, JSON.stringify(volunteer.data))
   const duty = await api(pb.base, "/api/collections/teaching_assignments/records", {
     token: tokenA,
     method: "POST",
