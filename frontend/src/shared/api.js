@@ -1,3 +1,22 @@
+export async function apiText(path, { token } = {}) {
+  const headers = {}
+  if (token) headers.authorization = token
+  const response = await fetch(path, { headers })
+  const text = await response.text()
+  if (!response.ok) {
+    let message = text
+    try {
+      message = JSON.parse(text).message || text
+    } catch {
+      message = text
+    }
+    const error = new Error(message || "请求失败")
+    error.status = response.status
+    throw error
+  }
+  return text
+}
+
 export async function api(path, { token, method = "GET", body } = {}) {
   const headers = {}
   if (token) headers.authorization = token

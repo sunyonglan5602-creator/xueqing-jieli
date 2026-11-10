@@ -1,3 +1,4 @@
+const TEACHER_TYPES = ["短期支教", "长期支教", "在编或特岗教师"]
 const LOCK_AFTER = 5
 const LOCK_MS = 15 * 60 * 1000
 const RANK = ["platform_admin", "org_admin", "school_admin", "teacher", "parent", "education_bureau_viewer"]
@@ -64,8 +65,49 @@ function publicUser(record) {
     roles: rolesOf(record),
     org: record.get("org") || "",
     school: record.get("school") || "",
+    teacher_type: record.get("teacher_type") || "",
     must_change_password: record.get("must_change_password") === true,
   }
+}
+
+function readQuery(e, key) {
+  const info = e.requestInfo()
+  const query = info.query || {}
+  if (typeof query.get === "function") return String(query.get(key) || "")
+  return String(query[key] || "")
+}
+
+function matchedSchools(auth, township, area) {
+  const rank = rankOf(auth)
+  let rows = []
+  if (rank === "org_admin") {
+    rows = $app.findRecordsByFilter("schools", "org = {:org}", "name", 0, 0, { org: auth.get("org") })
+  } else if (rank === "school_admin") {
+    rows = [$app.findRecordById("schools", auth.get("school"))]
+  } else {
+    throw new NotFoundError("不存在")
+  }
+  const items = []
+  for (const row of rows) {
+    if (township && (row.get("township") || "") !== township) continue
+    if (area && (row.get("area") || "") !== area) continue
+    items.push({
+      id: row.id,
+      name: row.get("name"),
+      division_code: row.get("division_code") || "",
+      township: row.get("township") || "",
+      area: row.get("area") || "",
+    })
+  }
+  return items
+}
+
+function csvCell(value) {
+  const text = String(value || "")
+  if (text.indexOf(",") >= 0 || text.indexOf("\"") >= 0 || text.indexOf("\n") >= 0) {
+    return "\"" + text.split("\"").join("\"\"") + "\""
+  }
+  return text
 }
 
 function writeAudit(actorId, action, targetId, detail) {
@@ -623,6 +665,7 @@ function refreshActiveParents(studentId) {
 }
 
 module.exports = {
+  TEACHER_TYPES,
   NEXT_RANK,
   PROTECTED_FIELDS: [
     "email",
@@ -633,6 +676,7 @@ module.exports = {
     "school",
     "failed_login_count",
     "locked_until",
+    "teacher_type",
   ],
   rolesOf,
   rankOf,
@@ -641,6 +685,9 @@ module.exports = {
   currentUser,
   requireReadyUser,
   publicUser,
+  readQuery,
+  matchedSchools,
+  csvCell,
   writeAudit,
   stampAudit,
   verifyAuditChain,

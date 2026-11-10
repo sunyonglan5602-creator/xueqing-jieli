@@ -3,9 +3,12 @@ import { onMounted, ref } from "vue"
 import { useRouter } from "vue-router"
 import OrgStudents from "../components/OrgStudents.vue"
 import PhaseMenu from "../components/PhaseMenu.vue"
+import RegionTools from "../components/RegionTools.vue"
 import SchoolAccessForm from "../components/SchoolAccessForm.vue"
+import TeacherTypePanel from "../components/TeacherTypePanel.vue"
 import { api, highestRole } from "../shared/api.js"
 import { showsStudentDetail } from "../shared/menu.js"
+import { TEACHER_TYPES } from "../shared/teacher.js"
 import { useSessionStore } from "../stores/session.js"
 
 const router = useRouter()
@@ -22,13 +25,18 @@ const orgId = ref(session.record.org || "")
 const schoolName = ref("")
 const schoolId = ref(session.record.school || "")
 const alsoTeacher = ref(false)
+const teacherType = ref("")
+const divisionCode = ref("")
+const township = ref("")
+const area = ref("")
 const orgs = ref([])
 const schools = ref([])
 
 async function load() {
   blocked.value = false
   try {
-    accounts.value = (await api("/api/xueqing/accounts", { token: session.token })).items
+    const listed = (await api("/api/xueqing/accounts", { token: session.token })).items
+    accounts.value = listed.map((item) => ({ ...item, nextType: item.teacher_type || "" }))
   } catch (err) {
     error.value = err.message
     blocked.value = /未审核|已停用|协会不存在/.test(err.message)
@@ -73,11 +81,20 @@ async function createSchool() {
   const created = await api("/api/collections/schools/records", {
     token: session.token,
     method: "POST",
-    body: { name: schoolName.value, org: session.record.org },
+    body: {
+      name: schoolName.value,
+      org: session.record.org,
+      division_code: divisionCode.value.trim(),
+      township: township.value.trim(),
+      area: area.value.trim(),
+    },
   })
   schoolId.value = created.id
-  schoolName.value = ""
-  await load()
+    schoolName.value = ""
+    divisionCode.value = ""
+    township.value = ""
+    area.value = ""
+    await load()
 }
 
 async function createAccount() {
@@ -90,6 +107,7 @@ async function createAccount() {
       body.schoolId = schoolId.value
       body.alsoTeacher = alsoTeacher.value
     }
+    if (rank === "school_admin" || alsoTeacher.value) body.teacherType = teacherType.value
     const created = await api("/api/xueqing/accounts", {
       token: session.token,
       method: "POST",
@@ -98,6 +116,7 @@ async function createAccount() {
     oneTime.value = created.password
     username.value = ""
     displayName.value = ""
+    teacherType.value = ""
     await load()
   } catch (err) {
     error.value = err.message
@@ -115,6 +134,20 @@ async function reset(row) {
     })
     oneTime.value = result.password
     row.resetMs = Date.now() - started
+  } catch (err) {
+    error.value = err.message
+  }
+}
+
+async function saveType(row) {
+  error.value = ""
+  try {
+    await api("/api/xueqing/teacher-types", {
+      token: session.token,
+      method: "POST",
+      body: { userId: row.id, teacherType: row.nextType },
+    })
+    await load()
   } catch (err) {
     error.value = err.message
   }
@@ -144,6 +177,8 @@ onMounted(load)
       </p>
       <template v-if="!blocked">
         <SchoolAccessForm v-if="rank === 'school_admin'" />
+        <RegionTools v-if="rank === 'org_admin' || rank === 'school_admin'" />
+        <TeacherTypePanel v-if="rank === 'org_admin' || rank === 'school_admin'" />
         <OrgStudents v-if="showsStudentDetail(session.record)" />
         <el-form
           v-if="rank === 'platform_admin'"
@@ -166,6 +201,18 @@ onMounted(load)
           <el-input
             v-model="schoolName"
             placeholder="学校名称"
+          />
+          <el-input
+            v-model="divisionCode"
+            placeholder="行政区划代码，可空"
+          />
+          <el-input
+            v-model="township"
+            placeholder="所属乡镇，可空"
+          />
+          <el-input
+            v-model="area"
+            placeholder="所属片区，可空"
           />
           <el-button native-type="submit">
             开通学校
@@ -211,6 +258,18 @@ onMounted(load)
           >
             同时是老师
           </el-checkbox>
+          <el-select
+            v-if="rank === 'school_admin' || alsoTeacher"
+            v-model="teacherType"
+            placeholder="老师类型"
+          >
+            <el-option
+              v-for="type in TEACHER_TYPES"
+              :key="type"
+              :label="type"
+              :value="type"
+            />
+          </el-select>
           <el-button
             native-type="submit"
           >
@@ -229,11 +288,31 @@ onMounted(load)
             prop="display_name"
             label="名称"
           />
+          <el-table-column
+            prop="teacher_type"
+            label="老师类型"
+          />
           <el-table-column label="操作">
             <template #default="{ row }">
               <el-button @click="reset(row)">
                 重置口令
               </el-button>
+              <template v-if="row.roles.includes('teacher')">
+                <el-select
+                  v-model="row.nextType"
+                  placeholder="老师类型"
+                >
+                  <el-option
+                    v-for="type in TEACHER_TYPES"
+                    :key="type"
+                    :label="type"
+                    :value="type"
+                  />
+                </el-select>
+                <el-button @click="saveType(row)">
+                  保存类型
+                </el-button>
+              </template>
             </template>
           </el-table-column>
         </el-table>

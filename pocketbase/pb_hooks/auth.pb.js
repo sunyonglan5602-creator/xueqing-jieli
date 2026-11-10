@@ -126,9 +126,13 @@ routerAdd("POST", "/api/xueqing/accounts", (e) => {
   const scope = lib.accountScope(auth, body, role)
   const roles = [role]
   if (role === "school_admin" && body.alsoTeacher === true) roles.push("teacher")
+  const teacherType = String(body.teacherType || "").trim()
+  if (roles.indexOf("teacher") >= 0 && lib.TEACHER_TYPES.indexOf(teacherType) < 0) {
+    throw new BadRequestError("请选择老师类型")
+  }
   const password = $security.randomString(12)
   const users = $app.findCollectionByNameOrId("users")
-  const record = new Record(users, {
+  const data = {
     username,
     display_name: displayName,
     roles,
@@ -137,7 +141,9 @@ routerAdd("POST", "/api/xueqing/accounts", (e) => {
     must_change_password: true,
     failed_login_count: 0,
     emailVisibility: false,
-  })
+  }
+  if (roles.indexOf("teacher") >= 0) data.teacher_type = teacherType
+  const record = new Record(users, data)
   record.setPassword(password)
   try {
     $app.save(record)
