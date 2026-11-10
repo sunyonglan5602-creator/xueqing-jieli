@@ -53,20 +53,25 @@ test("P0-17 审计不可删、可检索，敏感字段读写留痕，导出要�
   const tokenB = (await login(pb.base, "audit-school-b", PASSWORD)).data.token
   const tokenPlatform = (await login(pb.base, "audit-platform", PASSWORD)).data.token
 
+  const classA = (await api(pb.base, "/api/collections/classes/records", {
+    token: tokenA,
+    method: "POST",
+    body: { name: "审计一班", school: schoolA.id, org: orgA.id, grades: ["三年级"] },
+  })).data
+  const classB = (await api(pb.base, "/api/collections/classes/records", {
+    token: tokenB,
+    method: "POST",
+    body: { name: "审计乙班", school: schoolB.id, org: orgB.id, grades: ["三年级"] },
+  })).data
   const student = (await api(pb.base, "/api/collections/students/records", {
     token: tokenA,
     method: "POST",
-    body: { display_name: "演示生01", school: schoolA.id, org: orgA.id, uid: "00000000-0000-7000-8000-000000000010" },
+    body: { display_name: "演示生01", grade: "三年级", current_class: classA.id, school: schoolA.id, org: orgA.id, uid: "00000000-0000-7000-8000-000000000010" },
   })).data
   const other = (await api(pb.base, "/api/collections/students/records", {
     token: tokenB,
     method: "POST",
-    body: { display_name: "演示生乙", school: schoolB.id, org: orgB.id, uid: "00000000-0000-7000-8000-000000000011" },
-  })).data
-  const classA = (await api(pb.base, "/api/collections/classes/records", {
-    token: tokenA,
-    method: "POST",
-    body: { name: "审计一班", school: schoolA.id, org: orgA.id },
+    body: { display_name: "演示生乙", grade: "三年级", current_class: classB.id, school: schoolB.id, org: orgB.id, uid: "00000000-0000-7000-8000-000000000011" },
   })).data
   const enrolled = await api(pb.base, "/api/collections/class_memberships/records", {
     token: tokenA,

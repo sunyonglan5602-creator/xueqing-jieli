@@ -137,12 +137,12 @@ test("P0-35 老师类型必填且只用于分组，P0-38 区划可空并可按�
   const klass = (await api(pb.base, "/api/collections/classes/records", {
     token: tokenSchool,
     method: "POST",
-    body: { name: "类型一班", school: east.id, org: org.id },
+    body: { name: "类型一班", school: east.id, org: org.id, grades: ["三年级"] },
   })).data
   const student = (await api(pb.base, "/api/collections/students/records", {
     token: tokenSchool,
     method: "POST",
-    body: { display_name: "类型生", school: east.id, org: org.id, uid: "00000000-0000-7000-8000-000000000031" },
+    body: { display_name: "类型生", grade: "三年级", current_class: klass.id, school: east.id, org: org.id, uid: "00000000-0000-7000-8000-000000000031" },
   })).data
   const membership = await api(pb.base, "/api/collections/class_memberships/records", {
     token: tokenSchool,

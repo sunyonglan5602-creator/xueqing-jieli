@@ -98,11 +98,30 @@ test("P0-02 跨租户不可读，家长只读已生效的孩子，其他照料�
   const tokenParentC = (await login(pb.base, "parent-c", PASSWORD)).data.token
   const tokenEdu = (await login(pb.base, "edu-a", PASSWORD)).data.token
 
+  const classA = await api(pb.base, "/api/collections/classes/records", {
+    token: tokenA,
+    method: "POST",
+    body: { name: "演示一班", school: schoolA.id, org: orgB.id, grades: ["三年级"] },
+  })
+  assert.equal(classA.status, 200, JSON.stringify(classA.data))
+  assert.equal(classA.data.org, orgA.id)
+  const classA2 = (await api(pb.base, "/api/collections/classes/records", {
+    token: tokenA,
+    method: "POST",
+    body: { name: "演示二班", school: schoolA.id, org: orgA.id, grades: ["三年级"] },
+  })).data
+  const classB = (await api(pb.base, "/api/collections/classes/records", {
+    token: tokenB,
+    method: "POST",
+    body: { name: "演示乙班", school: schoolB.id, org: orgB.id, grades: ["三年级"] },
+  })).data
   const forged = await api(pb.base, "/api/collections/students/records", {
     token: tokenA,
     method: "POST",
     body: {
       display_name: "演示生01",
+      grade: "三年级",
+      current_class: classA.data.id,
       school: schoolA.id,
       org: orgB.id,
       uid: "00000000-0000-7000-8000-000000000000",
@@ -116,22 +135,14 @@ test("P0-02 跨租户不可读，家长只读已生效的孩子，其他照料�
   const studentA2 = (await api(pb.base, "/api/collections/students/records", {
     token: tokenA,
     method: "POST",
-    body: { display_name: "演示生02", school: schoolA.id, org: orgA.id, uid: "00000000-0000-7000-8000-000000000001" },
+    body: { display_name: "演示生02", grade: "三年级", current_class: classA2.id, school: schoolA.id, org: orgA.id, uid: "00000000-0000-7000-8000-000000000001" },
   })).data
   const studentB = (await api(pb.base, "/api/collections/students/records", {
     token: tokenB,
     method: "POST",
-    body: { display_name: "演示生01", school: schoolB.id, org: orgB.id, uid: "00000000-0000-7000-8000-000000000002" },
+    body: { display_name: "演示生01", grade: "三年级", current_class: classB.id, school: schoolB.id, org: orgB.id, uid: "00000000-0000-7000-8000-000000000002" },
   })).data
   assert.notEqual(studentA.uid, studentB.uid)
-
-  const classA = await api(pb.base, "/api/collections/classes/records", {
-    token: tokenA,
-    method: "POST",
-    body: { name: "演示一班", school: schoolA.id, org: orgB.id },
-  })
-  assert.equal(classA.status, 200, JSON.stringify(classA.data))
-  assert.equal(classA.data.org, orgA.id)
   const enrolled = await api(pb.base, "/api/collections/class_memberships/records", {
     token: tokenA,
     method: "POST",

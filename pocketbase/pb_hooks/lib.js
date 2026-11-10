@@ -1,4 +1,5 @@
 const TEACHER_TYPES = ["短期支教", "长期支教", "在编或特岗教师"]
+const GRADES = ["一年级", "二年级", "三年级", "四年级", "五年级", "六年级"]
 const LOCK_AFTER = 5
 const LOCK_MS = 15 * 60 * 1000
 const RANK = ["platform_admin", "org_admin", "school_admin", "teacher", "parent", "education_bureau_viewer"]
@@ -650,6 +651,197 @@ function classRecordVisible(record, onText) {
   return false
 }
 
+function toList(value) {
+  if (!value) return []
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value)
+      if (Array.isArray(parsed)) return parsed
+    } catch (err) {
+      return [value]
+    }
+    return value ? [value] : []
+  }
+  const list = []
+  if (typeof value.length === "number") {
+    for (let i = 0; i < value.length; i += 1) list.push(value[i])
+  }
+  return list
+}
+
+function prepareStudent(auth, record) {
+  const grade = record.get("grade") || ""
+  if (GRADES.indexOf(grade) < 0) throw new BadRequestError("请填写年级")
+  const classId = record.get("current_class") || ""
+  if (!classId) throw new BadRequestError("请选择班级")
+  let klass = null
+  try {
+    klass = $app.findRecordById("classes", classId)
+  } catch (err) {
+    throw new BadRequestError("请选择班级")
+  }
+  if (klass.get("school") !== auth.get("school") || klass.get("org") !== auth.get("org")) throw new NotFoundError("不存在")
+  const grades = toList(klass.get("grades"))
+  if (!grades.length) throw new BadRequestError("请先填写班级年级")
+  const reason = String(record.get("mismatch_reason") || "").trim()
+  if (grades.indexOf(grade) < 0) {
+    if (!reason) throw new BadRequestError("年级与班级不匹配")
+    record.set("mismatch_reason", reason)
+  } else {
+    record.set("mismatch_reason", "")
+  }
+  const same = $app.findRecordsByFilter("students", "school = {:school} && display_name = {:name} && grade = {:grade} && merged_into = ''", "", 2, 0, {
+    school: auth.get("school"),
+    name: record.get("display_name"),
+    grade,
+  })
+  let duplicated = false
+  for (const row of same) if (row.id !== record.id) duplicated = true
+  if (duplicated && record.get("confirm_duplicate") !== true) throw new BadRequestError("疑似重复")
+  record.set("confirm_duplicate", false)
+}
+
+function importStudents(auth, classId, csv) {
+  const text = String(csv || "").trim()
+  const lines = text.split(/\r?\n/)
+  if (lines.length < 2) throw new BadRequestError("请提供表头和至少一行学生")
+  const header = lines[0].split(",").map((item) => item.trim())
+  if (header[0] !== "姓名" || header[1] !== "年级") throw new BadRequestError("表头必须是姓名,年级")
+  let klass = null
+  try {
+    klass = $app.findRecordById("classes", classId)
+  } catch (err) {
+    throw new BadRequestError("请选择班级")
+  }
+  if (klass.get("school") !== auth.get("school") || klass.get("org") !== auth.get("org")) throw new NotFoundError("不存在")
+  const classGrades = toList(klass.get("grades"))
+  const errors = []
+  const pending = []
+  const seen = {}
+  for (let i = 1; i < lines.length; i += 1) {
+    if (!lines[i].trim()) continue
+    const rowNumber = i + 1
+    const cells = lines[i].split(",")
+    const name = String(cells[0] || "").trim()
+    const grade = String(cells[1] || "").trim()
+    if (!name) {
+      errors.push("第" + rowNumber + "行：请填写姓名")
+      continue
+    }
+    if (GRADES.indexOf(grade) < 0) {
+      errors.push("第" + rowNumber + "行：请填写年级")
+      continue
+    }
+    if (classGrades.indexOf(grade) < 0) {
+      errors.push("第" + rowNumber + "行：年级与班级不匹配")
+      continue
+    }
+    const key = name + "|" + grade
+    if (seen[key]) {
+      errors.push("第" + rowNumber + "行：疑似重复")
+      continue
+    }
+    seen[key] = true
+    const existing = $app.findRecordsByFilter("students", "school = {:school} && display_name = {:name} && grade = {:grade} && merged_into = ''", "", 1, 0, {
+      school: auth.get("school"),
+      name,
+      grade,
+    })
+    if (existing.length) {
+      errors.push("第" + rowNumber + "行：疑似重复")
+      continue
+    }
+    pending.push({ name, grade })
+  }
+  if (errors.length) throw new BadRequestError(errors.join("；"))
+  const students = $app.findCollectionByNameOrId("students")
+  const memberships = $app.findCollectionByNameOrId("class_memberships")
+  const ids = []
+  for (const item of pending) {
+    const student = new Record(students, {
+      display_name: item.name,
+      grade: item.grade,
+      school: auth.get("school"),
+      org: auth.get("org"),
+      current_class: classId,
+      mismatch_reason: "",
+      confirm_duplicate: false,
+      active_parent_ids: "",
+      uid: uuidv7(),
+    })
+    $app.save(student)
+    const membership = new Record(memberships, {
+      student: student.id,
+      class: classId,
+      org: auth.get("org"),
+      started_on: new Date().toISOString(),
+    })
+    $app.save(membership)
+    ids.push(student.id)
+  }
+  return ids
+}
+
+function mergeStudents(auth, sourceId, targetId) {
+  if (!sourceId || sourceId === targetId) throw new BadRequestError("请选择两名不同的学生")
+  let source = null
+  let target = null
+  try {
+    source = $app.findRecordById("students", sourceId)
+    target = $app.findRecordById("students", targetId)
+  } catch (err) {
+    throw new NotFoundError("不存在")
+  }
+  if (source.get("school") !== auth.get("school") || target.get("school") !== auth.get("school")) throw new NotFoundError("不存在")
+  if (source.get("org") !== auth.get("org") || target.get("org") !== auth.get("org")) throw new NotFoundError("不存在")
+  if (source.get("merged_into")) throw new BadRequestError("该学生已经合并")
+  const collection = $app.findCollectionByNameOrId("student_merges")
+  const merge = new Record(collection, {
+    source: source.id,
+    target: target.id,
+    org: auth.get("org"),
+    school: auth.get("school"),
+    merged_by: auth.id,
+  })
+  $app.save(merge)
+  source.set("merged_into", target.id)
+  $app.save(source)
+  writeAudit(auth.id, "student_merged", merge.id, { org: auth.get("org"), student: target.id, source: source.id })
+  return merge.id
+}
+
+function studentHistory(auth, studentId) {
+  let student = null
+  try {
+    student = $app.findRecordById("students", studentId)
+  } catch (err) {
+    throw new NotFoundError("不存在")
+  }
+  if (student.get("school") !== auth.get("school") || student.get("org") !== auth.get("org")) throw new NotFoundError("不存在")
+  const sources = $app.findRecordsByFilter("students", "merged_into = {:id}", "", 0, 0, { id: studentId })
+  const ids = [studentId]
+  for (const source of sources) ids.push(source.id)
+  const records = []
+  const memberships = []
+  for (const id of ids) {
+    const learned = $app.findRecordsByFilter("learning_records", "student = {:id}", "created", 0, 0, { id })
+    for (const row of learned) {
+      records.push({
+        id: row.id,
+        uid: row.get("uid"),
+        student: row.get("student"),
+        source_student: row.get("student"),
+        body: row.get("body"),
+      })
+    }
+    const joined = $app.findRecordsByFilter("class_memberships", "student = {:id}", "", 0, 0, { id })
+    for (const row of joined) {
+      memberships.push({ id: row.id, student: row.get("student"), source_student: row.get("student"), class: row.get("class") })
+    }
+  }
+  return { student: studentId, records, memberships }
+}
+
 function refreshActiveParents(studentId) {
   const student = $app.findRecordById("students", studentId)
   const bindings = $app.findRecordsByFilter("parent_student_bindings", "student = {:id}", "", 0, 0, { id: studentId })
@@ -666,6 +858,11 @@ function refreshActiveParents(studentId) {
 
 module.exports = {
   TEACHER_TYPES,
+  GRADES,
+  prepareStudent,
+  importStudents,
+  mergeStudents,
+  studentHistory,
   NEXT_RANK,
   PROTECTED_FIELDS: [
     "email",

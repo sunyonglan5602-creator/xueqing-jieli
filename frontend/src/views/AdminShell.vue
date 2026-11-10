@@ -5,6 +5,7 @@ import OrgStudents from "../components/OrgStudents.vue"
 import PhaseMenu from "../components/PhaseMenu.vue"
 import RegionTools from "../components/RegionTools.vue"
 import SchoolAccessForm from "../components/SchoolAccessForm.vue"
+import StudentArchive from "../components/StudentArchive.vue"
 import TeacherTypePanel from "../components/TeacherTypePanel.vue"
 import { api, highestRole } from "../shared/api.js"
 import { showsStudentDetail } from "../shared/menu.js"
@@ -177,6 +178,7 @@ onMounted(load)
       </p>
       <template v-if="!blocked">
         <SchoolAccessForm v-if="rank === 'school_admin'" />
+        <StudentArchive v-if="rank === 'school_admin'" />
         <RegionTools v-if="rank === 'org_admin' || rank === 'school_admin'" />
         <TeacherTypePanel v-if="rank === 'org_admin' || rank === 'school_admin'" />
         <OrgStudents v-if="showsStudentDetail(session.record)" />

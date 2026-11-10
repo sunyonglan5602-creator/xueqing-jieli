@@ -83,7 +83,7 @@ test("P0-30 同协会内学校和班级互相隔离，P0-03 授权到期并审�
       const created = await api(pb.base, "/api/collections/classes/records", {
         token,
         method: "POST",
-        body: { name: `层级${classKey}班`, school: school.id, org },
+        body: { name: `层级${classKey}班`, school: school.id, org, grades: ["三年级"] },
       })
       assert.equal(created.status, 200, JSON.stringify(created.data))
       classes[classKey] = created.data
@@ -97,7 +97,7 @@ test("P0-30 同协会内学校和班级互相隔离，P0-03 授权到期并审�
       const student = await api(pb.base, "/api/collections/students/records", {
         token,
         method: "POST",
-        body: { display_name: `层级生${classKey}`, school: school.id, org, uid: "00000000-0000-7000-8000-000000000099" },
+        body: { display_name: `层级生${classKey}`, grade: "三年级", current_class: created.data.id, school: school.id, org, uid: "00000000-0000-7000-8000-000000000099" },
       })
       assert.equal(student.status, 200, JSON.stringify(student.data))
       students[classKey] = student.data
