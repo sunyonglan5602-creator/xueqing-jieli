@@ -1,7 +1,11 @@
 <script setup>
 import { onMounted, ref } from "vue"
 import { useRouter } from "vue-router"
+import OrgStudents from "../components/OrgStudents.vue"
+import PhaseMenu from "../components/PhaseMenu.vue"
+import SchoolAccessForm from "../components/SchoolAccessForm.vue"
 import { api, highestRole } from "../shared/api.js"
+import { showsStudentDetail } from "../shared/menu.js"
 import { useSessionStore } from "../stores/session.js"
 
 const router = useRouter()
@@ -134,10 +138,13 @@ onMounted(load)
     </el-header>
     <el-main>
       <p>开通和重置都不使用短信或邮件。一次性口令只在这里显示一次。审核通过后，协会管理员在这里开通 1 所学校和 1 位学校管理员。</p>
+      <PhaseMenu />
       <p v-if="error">
         {{ error }}
       </p>
       <template v-if="!blocked">
+        <SchoolAccessForm v-if="rank === 'school_admin'" />
+        <OrgStudents v-if="showsStudentDetail(session.record)" />
         <el-form
           v-if="rank === 'platform_admin'"
           @submit.prevent="createOrg"

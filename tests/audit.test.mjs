@@ -63,6 +63,23 @@ test("P0-17 审计不可删、可检索，敏感字段读写留痕，导出要�
     method: "POST",
     body: { display_name: "演示生乙", school: schoolB.id, org: orgB.id, uid: "00000000-0000-7000-8000-000000000011" },
   })).data
+  const classA = (await api(pb.base, "/api/collections/classes/records", {
+    token: tokenA,
+    method: "POST",
+    body: { name: "审计一班", school: schoolA.id, org: orgA.id },
+  })).data
+  const enrolled = await api(pb.base, "/api/collections/class_memberships/records", {
+    token: tokenA,
+    method: "POST",
+    body: { student: student.id, class: classA.id, org: orgA.id },
+  })
+  assert.equal(enrolled.status, 200, JSON.stringify(enrolled.data))
+  const duty = await api(pb.base, "/api/collections/teaching_assignments/records", {
+    token: tokenA,
+    method: "POST",
+    body: { class: classA.id, teacher: teacher.id, subject: "语文", school: schoolA.id, org: orgA.id },
+  })
+  assert.equal(duty.status, 200, JSON.stringify(duty.data))
   const binding = (await api(pb.base, "/api/collections/parent_student_bindings/records", {
     token: tokenA,
     method: "POST",

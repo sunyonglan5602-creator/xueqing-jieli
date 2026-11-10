@@ -9,9 +9,11 @@ routerUse((e) => {
   const method = e.request.method
   if (method !== "GET" && method !== "PATCH" && method !== "DELETE") return e.next()
   const parts = lib.requestPath(e).split("/")
-  if (parts.length !== 6 || parts[1] !== "api" || parts[2] !== "collections" || parts[4] !== "records") return e.next()
+  if ((parts.length !== 5 && parts.length !== 6) || parts[1] !== "api" || parts[2] !== "collections" || parts[4] !== "records") return e.next()
   const name = parts[3]
-  const guarded = ["organizations", "schools", "classes", "students", "class_memberships", "learning_records", "parent_student_bindings"]
+  if (name === "wuyu_records") throw new NotFoundError("不存在")
+  if (parts.length !== 6) return e.next()
+  const guarded = ["organizations", "schools", "classes", "students", "class_memberships", "learning_records", "parent_student_bindings", "handover_packages", "handover_reviews", "teaching_assignments", "detail_grants"]
   if (guarded.indexOf(name) < 0) return e.next()
   let record = null
   try {
@@ -67,6 +69,9 @@ onRecordUpdateRequest((e) => {
   e.record.set("org", original.get("org"))
   e.record.set("school", original.get("school"))
   e.record.set("active_parent_ids", original.get("active_parent_ids"))
+  e.record.set("current_class", original.get("current_class"))
+  e.record.set("class_teacher_ids", original.get("class_teacher_ids"))
+  e.record.set("detail_until", original.get("detail_until"))
   return e.next()
 }, "students")
 

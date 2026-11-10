@@ -132,6 +132,18 @@ test("P0-02 跨租户不可读，家长只读已生效的孩子，其他照料�
   })
   assert.equal(classA.status, 200, JSON.stringify(classA.data))
   assert.equal(classA.data.org, orgA.id)
+  const enrolled = await api(pb.base, "/api/collections/class_memberships/records", {
+    token: tokenA,
+    method: "POST",
+    body: { student: studentA.id, class: classA.data.id, org: orgA.id },
+  })
+  assert.equal(enrolled.status, 200, JSON.stringify(enrolled.data))
+  const duty = await api(pb.base, "/api/collections/teaching_assignments/records", {
+    token: tokenA,
+    method: "POST",
+    body: { class: classA.data.id, teacher: teacherA.id, subject: "语文", school: schoolA.id, org: orgA.id },
+  })
+  assert.equal(duty.status, 200, JSON.stringify(duty.data))
 
   for (const path of [
     `/api/collections/students/records/${studentA.id}`,
@@ -226,7 +238,7 @@ test("P0-02 跨租户不可读，家长只读已生效的孩子，其他照料�
   })
   assert.ok(registerAudit.data.items.length >= 1, JSON.stringify(registerAudit.data))
 
-  const hidden = await api(pb.base, `/api/collections/parent_student_bindings/records/${caregiver.data.id}`, { token: tokenTeacher })
+  const hidden = await api(pb.base, `/api/collections/parent_student_bindings/records/${legal.data.id}`, { token: tokenTeacher })
   assert.equal(hidden.status, 200, JSON.stringify(hidden.data))
   assert.equal(Object.hasOwn(hidden.data, "authorization_record"), false)
   assert.equal(Object.hasOwn(hidden.data, "authorization_registered"), false)

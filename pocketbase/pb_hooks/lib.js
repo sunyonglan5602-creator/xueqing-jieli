@@ -252,10 +252,93 @@ function sameOrg(auth, record) {
   return Boolean(org) && org === auth.get("org")
 }
 
+function timeOf(value) {
+  if (!value) return 0
+  const text = toString(value)
+  if (!text || text.indexOf("0001") === 0) return 0
+  const ms = new Date(text).getTime()
+  return Number.isNaN(ms) ? 0 : ms
+}
+
+function stillActive(record) {
+  const ms = timeOf(record.get("valid_until"))
+  return ms === 0 || ms > Date.now()
+}
+
+function hasRole(record, role) {
+  return rolesOf(record).indexOf(role) >= 0
+}
+
+function teacherAssigned(auth, classId) {
+  if (!classId) return false
+  const rows = $app.findRecordsByFilter("teaching_assignments", "class = {:class} && teacher = {:teacher} && org = {:org}", "", 0, 0, {
+    class: classId,
+    teacher: auth.id,
+    org: auth.get("org"),
+  })
+  for (const row of rows) if (stillActive(row)) return true
+  return false
+}
+
+function grantCovers(auth, schoolId) {
+  const rows = $app.findRecordsByFilter("detail_grants", "school = {:school} && org = {:org}", "", 0, 0, {
+    school: schoolId,
+    org: auth.get("org"),
+  })
+  for (const row of rows) if (stillActive(row)) return true
+  return false
+}
+
+function anyGrant(auth) {
+  const rows = $app.findRecordsByFilter("detail_grants", "org = {:org}", "", 0, 0, { org: auth.get("org") })
+  for (const row of rows) if (stillActive(row)) return true
+  return false
+}
+
+function subjectVisible(auth, record) {
+  const student = $app.findRecordById("students", record.get("student"))
+  const school = $app.findRecordById("schools", student.get("school"))
+  if ((school.get("cross_subject_view") || "打开") !== "关闭") return true
+  const subject = String(record.get("subject") || "")
+  if (!subject) return false
+  const rows = $app.findRecordsByFilter("teaching_assignments", "class = {:class} && teacher = {:teacher}", "", 0, 0, {
+    class: record.get("class"),
+    teacher: auth.id,
+  })
+  for (const row of rows) if (stillActive(row) && row.get("subject") === subject) return true
+  return false
+}
+
+function canReadStudentPiece(auth, record) {
+  const rank = rankOf(auth)
+  const name = record.collection().name
+  let schoolId = ""
+  let classId = ""
+  if (name === "students") {
+    schoolId = record.get("school")
+    classId = record.get("current_class")
+  } else if (name === "class_memberships") {
+    const klass = $app.findRecordById("classes", record.get("class"))
+    schoolId = klass.get("school")
+    classId = record.get("class")
+  } else {
+    const student = $app.findRecordById("students", record.get("student"))
+    schoolId = student.get("school")
+    classId = record.get("class") || student.get("current_class")
+  }
+  if (rank === "org_admin") return grantCovers(auth, schoolId)
+  if (schoolId !== auth.get("school")) return false
+  if (rank === "school_admin") return true
+  if (rank !== "teacher" || !teacherAssigned(auth, classId)) return false
+  if (name === "learning_records") return subjectVisible(auth, record)
+  return true
+}
+
 function canRead(auth, record) {
   if (!auth || auth.get("must_change_password")) return false
   const name = record.collection().name
   const rank = rankOf(auth)
+  if (name === "wuyu_records") return false
   if (rank === "platform_admin") return name === "organizations" || name === "schools"
   if (rank === "education_bureau_viewer") return false
   if (rank === "parent") {
@@ -264,7 +347,46 @@ function canRead(auth, record) {
     return false
   }
   if (!sameOrg(auth, record)) return false
-  return rank === "org_admin" || rank === "school_admin" || rank === "teacher"
+  if (name === "organizations") return rank === "org_admin" || rank === "school_admin" || rank === "teacher"
+  if (name === "schools") {
+    if (rank === "org_admin") return true
+    return record.id === auth.get("school")
+  }
+  if (name === "classes") {
+    if (rank === "org_admin") return true
+    if (rank === "school_admin") return record.get("school") === auth.get("school")
+    return teacherAssigned(auth, record.id)
+  }
+  if (name === "teaching_assignments") {
+    if (rank === "org_admin") return true
+    if (rank === "school_admin") return record.get("school") === auth.get("school")
+    return record.get("teacher") === auth.id
+  }
+  if (name === "detail_grants") {
+    if (rank === "org_admin") return true
+    return rank === "school_admin" && record.get("school") === auth.get("school")
+  }
+  if (name === "students" || name === "class_memberships" || name === "learning_records") return canReadStudentPiece(auth, record)
+  if (name === "parent_student_bindings") {
+    const student = $app.findRecordById("students", record.get("student"))
+    if (rank === "org_admin") return grantCovers(auth, student.get("school"))
+    if (student.get("school") !== auth.get("school")) return false
+    if (rank === "school_admin") return true
+    return rank === "teacher" && teacherAssigned(auth, student.get("current_class"))
+  }
+  if (name === "handover_packages" || name === "handover_reviews") {
+    return rank === "org_admin" || rank === "school_admin" || rank === "teacher"
+  }
+  return false
+}
+
+function canReadClassHistory(auth, klass) {
+  const rank = rankOf(auth)
+  if (!sameOrg(auth, klass)) return false
+  if (rank === "school_admin") return klass.get("school") === auth.get("school")
+  if (rank === "teacher") return teacherAssigned(auth, klass.id)
+  if (rank === "org_admin") return grantCovers(auth, klass.get("school"))
+  return false
 }
 
 function bindingMayBeActive(record) {
@@ -300,7 +422,8 @@ function bindGuard(e) {
 }
 
 function prepareLearningRecord(auth, record) {
-  if (rankOf(auth) !== "teacher" && rankOf(auth) !== "school_admin") throw new ForbiddenError("不能记学情")
+  const rank = rankOf(auth)
+  if (rank !== "teacher" && rank !== "school_admin") throw new ForbiddenError("不能记学情")
   const previous = String(record.get("previous_uid") || "")
   if (previous) {
     let old = null
@@ -309,17 +432,180 @@ function prepareLearningRecord(auth, record) {
     } catch (err) {
       throw new NotFoundError("不存在")
     }
-    if (old.get("org") !== auth.get("org")) throw new NotFoundError("不存在")
+    if (old.get("org") !== auth.get("org") || !canReadStudentPiece(auth, old)) throw new NotFoundError("不存在")
+    if (old.get("author") !== auth.id) throw new BadRequestError("不能修改别人记的记录")
     record.set("student", old.get("student"))
+    if (old.get("class")) record.set("class", old.get("class"))
+    record.set("subject", old.get("subject") || "")
     record.set("version", Number(old.get("version") || 1) + 1)
     record.set("previous_uid", old.get("uid"))
   } else {
+    let student = null
+    try {
+      student = $app.findRecordById("students", record.get("student"))
+    } catch (err) {
+      throw new NotFoundError("不存在")
+    }
+    if (student.get("org") !== auth.get("org")) throw new NotFoundError("不存在")
+    if (rank === "school_admin" && student.get("school") !== auth.get("school")) throw new NotFoundError("不存在")
+    const classId = student.get("current_class") || ""
+    if (rank === "teacher" && !teacherAssigned(auth, classId)) throw new NotFoundError("不存在")
+    const subject = String(record.get("subject") || "")
+    record.set("subject", subject)
+    if (classId) record.set("class", classId)
+    if (rank === "teacher" && !subjectVisible(auth, record)) throw new BadRequestError("只能记自己任课学科")
     record.set("version", 1)
     record.set("previous_uid", "")
   }
   record.set("org", auth.get("org"))
   record.set("author", auth.id)
   record.set("uid", uuidv7())
+}
+
+function prepareMembership(auth, record) {
+  if (rankOf(auth) !== "school_admin") throw new NotFoundError("不存在")
+  let klass = null
+  try {
+    klass = $app.findRecordById("classes", record.get("class"))
+  } catch (err) {
+    throw new BadRequestError("请选择班级")
+  }
+  if (klass.get("org") !== auth.get("org") || klass.get("school") !== auth.get("school")) throw new NotFoundError("不存在")
+  let student = null
+  try {
+    student = $app.findRecordById("students", record.get("student"))
+  } catch (err) {
+    throw new NotFoundError("不存在")
+  }
+  if (student.get("school") !== auth.get("school") || student.get("org") !== auth.get("org")) throw new NotFoundError("不存在")
+  const existing = $app.findRecordsByFilter("class_memberships", "student = {:student}", "", 0, 0, { student: student.id })
+  const superseded = {}
+  for (const row of existing) if (row.get("previous_id")) superseded[row.get("previous_id")] = true
+  const current = []
+  for (const row of existing) if (!superseded[row.id]) current.push(row)
+  const previousId = String(record.get("previous_id") || "")
+  if (current.length && !previousId) throw new BadRequestError("学生同一时间只能在一个班")
+  if (previousId) {
+    let found = false
+    for (const row of current) if (row.id === previousId) found = true
+    if (!found) throw new BadRequestError("学生同一时间只能在一个班")
+  }
+  if (!record.get("started_on")) record.set("started_on", new Date().toISOString())
+  record.set("org", auth.get("org"))
+}
+
+function prepareAssignment(auth, record) {
+  if (rankOf(auth) !== "school_admin") throw new NotFoundError("不存在")
+  let klass = null
+  try {
+    klass = $app.findRecordById("classes", record.get("class"))
+  } catch (err) {
+    throw new BadRequestError("请选择班级")
+  }
+  if (klass.get("school") !== auth.get("school") || klass.get("org") !== auth.get("org")) throw new NotFoundError("不存在")
+  let teacher = null
+  try {
+    teacher = $app.findRecordById("users", record.get("teacher"))
+  } catch (err) {
+    throw new NotFoundError("不存在")
+  }
+  if (teacher.get("school") !== auth.get("school") || !hasRole(teacher, "teacher")) throw new NotFoundError("不存在")
+  const subject = String(record.get("subject") || "").trim()
+  if (!subject || subject.length > 20) throw new BadRequestError("请填写任课学科")
+  record.set("subject", subject)
+  record.set("org", klass.get("org"))
+  record.set("school", klass.get("school"))
+}
+
+function prepareGrant(auth, record) {
+  if (rankOf(auth) !== "school_admin") throw new NotFoundError("不存在")
+  const schoolId = String(record.get("school") || auth.get("school") || "")
+  let school = null
+  try {
+    school = $app.findRecordById("schools", schoolId)
+  } catch (err) {
+    throw new NotFoundError("不存在")
+  }
+  if (school.id !== auth.get("school") || school.get("org") !== auth.get("org")) throw new NotFoundError("不存在")
+  if (timeOf(record.get("valid_until")) === 0) throw new BadRequestError("请填写到期时间")
+  record.set("school", school.id)
+  record.set("org", school.get("org"))
+  record.set("granted_by", auth.id)
+}
+
+function refreshClassTeachers(classId) {
+  if (!classId) return
+  const klass = $app.findRecordById("classes", classId)
+  const assignments = $app.findRecordsByFilter("teaching_assignments", "class = {:class}", "", 0, 0, { class: classId })
+  const teacherIds = []
+  for (const row of assignments) {
+    if (!stillActive(row)) continue
+    const teacherId = row.get("teacher")
+    if (teacherIds.indexOf(teacherId) < 0) teacherIds.push(teacherId)
+  }
+  klass.set("teacher_ids", teacherIds.length ? "," + teacherIds.join(",") + "," : "")
+  $app.save(klass)
+  const memberships = $app.findRecordsByFilter("class_memberships", "class = {:class}", "", 0, 0, { class: classId })
+  for (const row of memberships) {
+    const student = $app.findRecordById("students", row.get("student"))
+    if (student.get("current_class") !== classId) continue
+    student.set("class_teacher_ids", klass.get("teacher_ids"))
+    $app.save(student)
+  }
+}
+
+function refreshRoster(studentId) {
+  const student = $app.findRecordById("students", studentId)
+  const memberships = $app.findRecordsByFilter("class_memberships", "student = {:student}", "", 0, 0, { student: studentId })
+  const superseded = {}
+  for (const row of memberships) if (row.get("previous_id")) superseded[row.get("previous_id")] = true
+  let currentClass = ""
+  const seen = {}
+  for (const row of memberships) {
+    seen[row.get("class")] = true
+    if (!superseded[row.id]) currentClass = row.get("class")
+  }
+  student.set("current_class", currentClass)
+  $app.save(student)
+  for (const classId of Object.keys(seen)) refreshClassTeachers(classId)
+}
+
+function refreshDetailUntil(schoolId) {
+  const grants = $app.findRecordsByFilter("detail_grants", "school = {:school}", "", 0, 0, { school: schoolId })
+  let best = ""
+  let bestMs = 0
+  for (const row of grants) {
+    const ms = timeOf(row.get("valid_until"))
+    if (ms >= bestMs) {
+      bestMs = ms
+      best = toString(row.get("valid_until"))
+    }
+  }
+  const students = $app.findRecordsByFilter("students", "school = {:school}", "", 0, 0, { school: schoolId })
+  for (const student of students) {
+    student.set("detail_until", bestMs ? best : "")
+    $app.save(student)
+  }
+}
+
+function classRecordVisible(record, onText) {
+  const onMs = timeOf(onText.length === 10 ? onText + " 00:00:00.000Z" : onText)
+  if (!onMs) return false
+  const created = timeOf(record.get("created"))
+  if (!created || created >= onMs + 24 * 60 * 60 * 1000) return false
+  const all = $app.findRecordsByFilter("class_memberships", "student = {:student}", "", 0, 0, { student: record.get("student") })
+  for (const row of all) {
+    if (row.get("class") !== record.get("class")) continue
+    const start = timeOf(row.get("started_on"))
+    let end = 0
+    for (const other of all) {
+      if (other.get("previous_id") === row.id) end = timeOf(other.get("started_on"))
+    }
+    const inside = onMs >= start && (end === 0 || onMs < end)
+    const writtenHere = created >= start && (end === 0 || created < end)
+    if (inside && writtenHere) return true
+  }
+  return false
 }
 
 function refreshActiveParents(studentId) {
@@ -365,8 +651,17 @@ module.exports = {
   noteFailure,
   uuidv7,
   canRead,
+  canReadClassHistory,
+  anyGrant,
+  classRecordVisible,
   bindingMayBeActive,
   refreshActiveParents,
   bindGuard,
   prepareLearningRecord,
+  prepareMembership,
+  prepareAssignment,
+  prepareGrant,
+  refreshRoster,
+  refreshClassTeachers,
+  refreshDetailUntil,
 }
