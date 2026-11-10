@@ -76,6 +76,8 @@ function writeAudit(actorId, action, targetId, detail) {
     detail: detail || {},
   }
   if (actorId) data.actor = actorId
+  if (detail && detail.org) data.org = detail.org
+  if (detail && detail.student) data.student_ref = detail.student
   $app.save(new Record(collection, data))
 }
 
@@ -224,6 +226,7 @@ function bindGuard(e) {
   if (action && e.record.id) {
     writeAudit(auth.id, action === "revoke" ? "authorization_revoke" : "authorization_register", e.record.id, {
       student: e.record.get("student"),
+      org: e.record.get("org"),
     })
   }
   return e.next()

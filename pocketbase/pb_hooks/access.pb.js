@@ -169,6 +169,12 @@ onRecordEnrich((e) => {
   if (!allowed) {
     e.record.hide("authorization_registered")
     e.record.hide("authorization_record")
+    return e.next()
   }
+  lib.writeAudit(auth.id, "sensitive_read", e.record.id, {
+    student: e.record.get("student"),
+    org: e.record.get("org"),
+    fields: "authorization_registered,authorization_record",
+  })
   return e.next()
 }, "parent_student_bindings")
