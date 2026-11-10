@@ -1,6 +1,7 @@
 <script setup>
 import { onMounted, ref } from "vue"
 import { useRouter } from "vue-router"
+import EnrollmentPanel from "../components/EnrollmentPanel.vue"
 import OrgStudents from "../components/OrgStudents.vue"
 import PhaseMenu from "../components/PhaseMenu.vue"
 import RegionTools from "../components/RegionTools.vue"
@@ -179,6 +180,7 @@ onMounted(load)
       <template v-if="!blocked">
         <SchoolAccessForm v-if="rank === 'school_admin'" />
         <StudentArchive v-if="rank === 'school_admin'" />
+        <EnrollmentPanel v-if="rank === 'school_admin' || rank === 'org_admin'" />
         <RegionTools v-if="rank === 'org_admin' || rank === 'school_admin'" />
         <TeacherTypePanel v-if="rank === 'org_admin' || rank === 'school_admin'" />
         <OrgStudents v-if="showsStudentDetail(session.record)" />

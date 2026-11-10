@@ -368,6 +368,13 @@ function canReadStudentPiece(auth, record) {
     const student = $app.findRecordById("students", record.get("student"))
     schoolId = student.get("school")
     classId = record.get("class") || student.get("current_class")
+    if (name === "learning_records" && record.get("class") && rank === "school_admin") {
+      const klass = $app.findRecordById("classes", record.get("class"))
+      if (klass.get("org") === auth.get("org") && klass.get("school") === auth.get("school")) return true
+    }
+  }
+  if (name === "students" && rank === "school_admin" && record.get("org") === auth.get("org") && String(record.get("school_ids") || "").indexOf(auth.get("school")) >= 0) {
+    return true
   }
   if (rank === "org_admin") return grantCovers(auth, schoolId)
   if (schoolId !== auth.get("school")) return false
@@ -506,21 +513,25 @@ function prepareLearningRecord(auth, record) {
 }
 
 function prepareMembership(auth, record) {
-  if (rankOf(auth) !== "school_admin") throw new NotFoundError("不存在")
+  const rank = rankOf(auth)
+  if (rank !== "school_admin" && rank !== "org_admin") throw new NotFoundError("不存在")
   let klass = null
   try {
     klass = $app.findRecordById("classes", record.get("class"))
   } catch (err) {
     throw new BadRequestError("请选择班级")
   }
-  if (klass.get("org") !== auth.get("org") || klass.get("school") !== auth.get("school")) throw new NotFoundError("不存在")
+  if (klass.get("org") !== auth.get("org")) throw new NotFoundError("不存在")
+  if (rank === "school_admin" && klass.get("school") !== auth.get("school")) throw new NotFoundError("不存在")
   let student = null
   try {
     student = $app.findRecordById("students", record.get("student"))
   } catch (err) {
     throw new NotFoundError("不存在")
   }
-  if (student.get("school") !== auth.get("school") || student.get("org") !== auth.get("org")) throw new NotFoundError("不存在")
+  if (student.get("org") !== auth.get("org")) throw new NotFoundError("不存在")
+  if (rank === "school_admin" && student.get("school") !== auth.get("school")) throw new NotFoundError("不存在")
+  if (rank === "org_admin" && !record.get("previous_id")) throw new NotFoundError("不存在")
   const existing = $app.findRecordsByFilter("class_memberships", "student = {:student}", "", 0, 0, { student: student.id })
   const superseded = {}
   for (const row of existing) if (row.get("previous_id")) superseded[row.get("previous_id")] = true
@@ -842,6 +853,72 @@ function studentHistory(auth, studentId) {
   return { student: studentId, records, memberships }
 }
 
+function currentMembership(studentId) {
+  const rows = $app.findRecordsByFilter("class_memberships", "student = {:student}", "", 0, 0, { student: studentId })
+  const superseded = {}
+  for (const row of rows) if (row.get("previous_id")) superseded[row.get("previous_id")] = true
+  for (const row of rows) if (!superseded[row.id]) return row
+  return null
+}
+
+function moveStudent(auth, body) {
+  const kind = String(body.kind || "")
+  if (kind !== "转班" && kind !== "升级" && kind !== "转校") throw new BadRequestError("请选择转班、升级或转校")
+  const rank = rankOf(auth)
+  let student = null
+  let klass = null
+  try {
+    student = $app.findRecordById("students", String(body.studentId || ""))
+    klass = $app.findRecordById("classes", String(body.classId || ""))
+  } catch (err) {
+    throw new NotFoundError("不存在")
+  }
+  if (student.get("org") !== auth.get("org") || klass.get("org") !== auth.get("org")) throw new NotFoundError("不存在")
+  if (kind === "转校") {
+    if (rank !== "org_admin") throw new NotFoundError("不存在")
+    if (klass.get("school") === student.get("school")) throw new BadRequestError("转校请选择另一所学校的班级")
+  } else if (rank !== "school_admin" || student.get("school") !== auth.get("school") || klass.get("school") !== auth.get("school")) {
+    throw new NotFoundError("不存在")
+  }
+  const grade = kind === "升级" ? String(body.grade || "") : (student.get("grade") || "")
+  if (kind === "升级" && (GRADES.indexOf(grade) < 0 || grade === (student.get("grade") || ""))) {
+    throw new BadRequestError("升级请选择新的年级")
+  }
+  if (kind === "转班" && klass.id === student.get("current_class")) throw new BadRequestError("请选择另一个班")
+  const grades = toList(klass.get("grades"))
+  const reason = String(body.mismatchReason || "").trim()
+  if (grades.indexOf(grade) < 0 && !reason) throw new BadRequestError("年级与班级不匹配")
+  const current = currentMembership(student.id)
+  if (!current) throw new BadRequestError("学生还没有在班记录")
+  const uid = student.get("uid")
+  const memberships = $app.findCollectionByNameOrId("class_memberships")
+  const membership = new Record(memberships, {
+    student: student.id,
+    class: klass.id,
+    org: student.get("org"),
+    previous_id: current.id,
+    change_kind: kind,
+    started_on: body.startedOn || new Date().toISOString(),
+  })
+  $app.save(membership)
+  student = $app.findRecordById("students", student.id)
+  let schoolIds = String(student.get("school_ids") || "")
+  if (schoolIds.indexOf("," + student.get("school") + ",") < 0) schoolIds += student.get("school") + ","
+  if (!schoolIds) schoolIds = ","
+  if (schoolIds.indexOf("," + klass.get("school") + ",") < 0) schoolIds += klass.get("school") + ","
+  student.set("school", klass.get("school"))
+  student.set("school_ids", schoolIds)
+  student.set("grade", grade)
+  student.set("current_class", klass.id)
+  student.set("mismatch_reason", grades.indexOf(grade) < 0 ? reason : "")
+  student.set("uid", uid)
+  $app.save(student)
+  const saved = $app.findRecordById("students", student.id)
+  if (saved.get("uid") !== uid) throw new BadRequestError("学生编号不能修改")
+  writeAudit(auth.id, "enrollment_" + kind, membership.id, { org: student.get("org"), student: student.id, class: klass.id })
+  return { id: membership.id, uid: saved.get("uid"), school: saved.get("school"), grade: saved.get("grade") }
+}
+
 function refreshActiveParents(studentId) {
   const student = $app.findRecordById("students", studentId)
   const bindings = $app.findRecordsByFilter("parent_student_bindings", "student = {:id}", "", 0, 0, { id: studentId })
@@ -863,6 +940,7 @@ module.exports = {
   importStudents,
   mergeStudents,
   studentHistory,
+  moveStudent,
   NEXT_RANK,
   PROTECTED_FIELDS: [
     "email",
