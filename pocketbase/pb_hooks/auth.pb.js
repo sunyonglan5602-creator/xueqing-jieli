@@ -9,12 +9,21 @@ routerUse((e) => {
     throw new BadRequestError("请联系上一级管理员重置口令")
   }
   const auth = lib.currentUser(e)
-  if (!auth || !auth.get("must_change_password")) return e.next()
-  if (path.indexOf("/auth-with-password") >= 0 || path.indexOf("/auth-refresh") >= 0) return e.next()
+  if (!auth) return e.next()
   const method = e.request.method
   const own = "/api/collections/users/records/" + auth.id
-  if ((method === "GET" || method === "PATCH") && path === own) return e.next()
-  throw new ForbiddenError("请先修改初始口令")
+  const selfService = (method === "GET" || method === "PATCH") && path === own
+  const authCall = path.indexOf("/auth-with-password") >= 0 || path.indexOf("/auth-refresh") >= 0
+  if (auth.get("must_change_password")) {
+    if (authCall || selfService) return e.next()
+    throw new ForbiddenError("请先修改初始口令")
+  }
+  if (authCall || selfService) return e.next()
+  const status = lib.orgStatus(auth)
+  if (status === "待审核") throw new ForbiddenError("未审核的协会不能进入业务页")
+  if (status === "已停用") throw new ForbiddenError("协会已停用")
+  if (status === "缺失") throw new ForbiddenError("协会不存在")
+  return e.next()
 })
 
 onRecordAuthWithPasswordRequest((e) => {

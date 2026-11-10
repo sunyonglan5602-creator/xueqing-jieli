@@ -9,6 +9,7 @@ const session = useSessionStore()
 const rank = highestRole(session.record)
 const accounts = ref([])
 const error = ref("")
+const blocked = ref(false)
 const oneTime = ref("")
 const username = ref("")
 const displayName = ref("")
@@ -21,10 +22,12 @@ const orgs = ref([])
 const schools = ref([])
 
 async function load() {
+  blocked.value = false
   try {
     accounts.value = (await api("/api/xueqing/accounts", { token: session.token })).items
   } catch (err) {
     error.value = err.message
+    blocked.value = /未审核|已停用|协会不存在/.test(err.message)
     return
   }
   if (rank === "platform_admin") {
@@ -32,6 +35,20 @@ async function load() {
   }
   if (rank === "org_admin") {
     schools.value = (await api("/api/collections/schools/records", { token: session.token })).items
+  }
+}
+
+async function reviewOrg(org, action) {
+  error.value = ""
+  try {
+    await api("/api/xueqing/organization-reviews", {
+      token: session.token,
+      method: "POST",
+      body: { orgId: org.id, action },
+    })
+    await load()
+  } catch (err) {
+    error.value = err.message
   }
 }
 
@@ -116,102 +133,133 @@ onMounted(load)
       管理端
     </el-header>
     <el-main>
-      <p>开通和重置都不使用短信或邮件。一次性口令只在这里显示一次。</p>
-      <el-form
-        v-if="rank === 'platform_admin'"
-        @submit.prevent="createOrg"
-      >
-        <el-input
-          v-model="orgName"
-          placeholder="协会名称"
-        />
-        <el-button
-          native-type="submit"
-        >
-          建立协会
-        </el-button>
-      </el-form>
-      <el-form
-        v-if="rank === 'org_admin'"
-        @submit.prevent="createSchool"
-      >
-        <el-input
-          v-model="schoolName"
-          placeholder="学校名称"
-        />
-        <el-button native-type="submit">
-          建立学校
-        </el-button>
-      </el-form>
-      <el-form @submit.prevent="createAccount">
-        <el-select
-          v-if="rank === 'platform_admin'"
-          v-model="orgId"
-          placeholder="协会"
-        >
-          <el-option
-            v-for="org in orgs"
-            :key="org.id"
-            :label="org.name"
-            :value="org.id"
-          />
-        </el-select>
-        <el-select
-          v-if="rank === 'org_admin'"
-          v-model="schoolId"
-          placeholder="学校"
-        >
-          <el-option
-            v-for="school in schools"
-            :key="school.id"
-            :label="school.name"
-            :value="school.id"
-          />
-        </el-select>
-        <el-input
-          v-model="username"
-          placeholder="账号"
-          autocomplete="off"
-        />
-        <el-input
-          v-model="displayName"
-          placeholder="名称"
-        />
-        <el-checkbox
-          v-if="rank === 'org_admin'"
-          v-model="alsoTeacher"
-        >
-          同时是老师
-        </el-checkbox>
-        <el-button
-          native-type="submit"
-        >
-          开通下一级
-        </el-button>
-      </el-form>
-      <p v-if="oneTime">
-        一次性口令：{{ oneTime }}
-      </p>
+      <p>开通和重置都不使用短信或邮件。一次性口令只在这里显示一次。审核通过后，协会管理员在这里开通 1 所学校和 1 位学校管理员。</p>
       <p v-if="error">
         {{ error }}
       </p>
-      <el-table :data="accounts">
-        <el-table-column
-          prop="username"
-          label="账号"
-        />
-        <el-table-column
-          prop="display_name"
-          label="名称"
-        />
-        <el-table-column label="操作">
-          <template #default="{ row }">
-            <el-button @click="reset(row)">
-              重置口令
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      <template v-if="!blocked">
+        <el-form
+          v-if="rank === 'platform_admin'"
+          @submit.prevent="createOrg"
+        >
+          <el-input
+            v-model="orgName"
+            placeholder="协会名称"
+          />
+          <el-button
+            native-type="submit"
+          >
+            建立协会
+          </el-button>
+        </el-form>
+        <el-form
+          v-if="rank === 'org_admin'"
+          @submit.prevent="createSchool"
+        >
+          <el-input
+            v-model="schoolName"
+            placeholder="学校名称"
+          />
+          <el-button native-type="submit">
+            开通学校
+          </el-button>
+        </el-form>
+        <el-form @submit.prevent="createAccount">
+          <el-select
+            v-if="rank === 'platform_admin'"
+            v-model="orgId"
+            placeholder="协会"
+          >
+            <el-option
+              v-for="org in orgs"
+              :key="org.id"
+              :label="org.name"
+              :value="org.id"
+            />
+          </el-select>
+          <el-select
+            v-if="rank === 'org_admin'"
+            v-model="schoolId"
+            placeholder="学校"
+          >
+            <el-option
+              v-for="school in schools"
+              :key="school.id"
+              :label="school.name"
+              :value="school.id"
+            />
+          </el-select>
+          <el-input
+            v-model="username"
+            placeholder="账号"
+            autocomplete="off"
+          />
+          <el-input
+            v-model="displayName"
+            placeholder="名称"
+          />
+          <el-checkbox
+            v-if="rank === 'org_admin'"
+            v-model="alsoTeacher"
+          >
+            同时是老师
+          </el-checkbox>
+          <el-button
+            native-type="submit"
+          >
+            开通下一级
+          </el-button>
+        </el-form>
+        <p v-if="oneTime">
+          一次性口令：{{ oneTime }}
+        </p>
+        <el-table :data="accounts">
+          <el-table-column
+            prop="username"
+            label="账号"
+          />
+          <el-table-column
+            prop="display_name"
+            label="名称"
+          />
+          <el-table-column label="操作">
+            <template #default="{ row }">
+              <el-button @click="reset(row)">
+                重置口令
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+        <el-table
+          v-if="rank === 'platform_admin'"
+          :data="orgs"
+        >
+          <el-table-column
+            prop="name"
+            label="协会"
+          />
+          <el-table-column
+            prop="status"
+            label="状态"
+          />
+          <el-table-column label="审核">
+            <template #default="{ row }">
+              <el-button
+                v-if="row.status === '待审核'"
+                @click="reviewOrg(row, '开通')"
+              >
+                开通
+              </el-button>
+              <el-button
+                v-if="row.status === '已开通'"
+                @click="reviewOrg(row, '停用')"
+              >
+                停用
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </template>
     </el-main>
   </el-container>
 </template>

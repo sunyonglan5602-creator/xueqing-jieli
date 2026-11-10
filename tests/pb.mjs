@@ -65,6 +65,7 @@ export async function startPocketBase() {
   }
   return {
     base,
+    dir,
     logs: () => logs,
     email,
     password,

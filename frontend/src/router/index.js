@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from "vue-router"
 import HomeView from "../views/HomeView.vue"
+import ApplyView from "../views/ApplyView.vue"
 import LoginView from "../views/LoginView.vue"
 import ChangePasswordView from "../views/ChangePasswordView.vue"
 import MobileShell from "../views/MobileShell.vue"
@@ -11,6 +12,7 @@ export const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: "/", name: "home", component: HomeView },
+    { path: "/apply", name: "apply", component: ApplyView },
     { path: "/login", name: "login", component: LoginView },
     { path: "/change-password", name: "change-password", component: ChangePasswordView, meta: { auth: true } },
     { path: "/m", name: "mobile", component: MobileShell, meta: { auth: true, business: true } },

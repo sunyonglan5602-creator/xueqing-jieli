@@ -81,6 +81,73 @@ function writeAudit(actorId, action, targetId, detail) {
   $app.save(new Record(collection, data))
 }
 
+function stableJson(value) {
+  if (value === null || value === undefined || value === "") return ""
+  let parsed = value
+  if (typeof parsed === "string") {
+    try {
+      parsed = JSON.parse(parsed)
+    } catch (err) {
+      return parsed
+    }
+  }
+  const sortValue = (input) => {
+    if (Array.isArray(input)) return input.map(sortValue)
+    if (!input || typeof input !== "object") return input
+    const keys = Object.keys(input).sort()
+    const sorted = {}
+    for (const key of keys) sorted[key] = sortValue(input[key])
+    return sorted
+  }
+  return JSON.stringify(sortValue(parsed))
+}
+
+function auditPayload(record) {
+  return [
+    record.id || "",
+    record.get("action") || "",
+    record.get("actor") || "",
+    record.get("target_id") || "",
+    record.get("student_ref") || "",
+    record.get("org") || "",
+    stableJson(record.get("detail")),
+    String(record.get("chain_seq") || 0),
+    record.get("prev_hash") || "",
+  ].join("\n")
+}
+
+function stampAudit(record) {
+  const previous = $app.findRecordsByFilter("audit_logs", "chain_seq > 0", "-chain_seq", 1, 0)
+  const prior = previous.length ? previous[0] : null
+  record.set("chain_seq", prior ? Number(prior.get("chain_seq") || 0) + 1 : 1)
+  record.set("prev_hash", prior ? prior.get("record_hash") || "" : "")
+  record.set("record_hash", $security.sha256(auditPayload(record)))
+}
+
+function verifyAuditChain() {
+  const rows = $app.findRecordsByFilter("audit_logs", "chain_seq > 0", "chain_seq", 0, 0)
+  let prev = ""
+  for (const row of rows) {
+    const prior = row.get("prev_hash") || ""
+    if (prior !== prev) return { ok: false, id: row.id }
+    if ((row.get("record_hash") || "") !== $security.sha256(auditPayload(row))) return { ok: false, id: row.id }
+    prev = row.get("record_hash") || ""
+  }
+  return { ok: true, id: "" }
+}
+
+function orgStatus(auth) {
+  const orgId = auth.get("org")
+  if (!orgId) return "已开通"
+  let org = null
+  try {
+    org = $app.findRecordById("organizations", orgId)
+  } catch (err) {
+    return "缺失"
+  }
+  return org.get("status") || "已开通"
+}
+
 function recordEntries(record) {
   const raw = record.get("authorization_record")
   if (!raw) return []
@@ -289,6 +356,9 @@ module.exports = {
   requireReadyUser,
   publicUser,
   writeAudit,
+  stampAudit,
+  verifyAuditChain,
+  orgStatus,
   accountsInScope,
   accountScope,
   targetInScope,

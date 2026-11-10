@@ -1,4 +1,11 @@
 // 审计不能改、不能删；可按人、时间、学生检索；导出要学校管理员批准。
+// 每条审计写入上一条的哈希，形成哈希链。
+
+onRecordCreate((e) => {
+  const lib = require(__hooks + "/lib.js")
+  lib.stampAudit(e.record)
+  return e.next()
+}, "audit_logs")
 
 onRecordUpdate(() => {
   throw new BadRequestError("审计日志不能删除")
@@ -92,6 +99,13 @@ routerAdd("GET", "/api/xueqing/audits", (e) => {
     })
   }
   return e.json(200, { items })
+})
+
+routerAdd("GET", "/api/xueqing/audit-chain", (e) => {
+  const lib = require(__hooks + "/lib.js")
+  const auth = lib.requireReadyUser(e)
+  if (lib.rankOf(auth) !== "platform_admin") throw new ForbiddenError("不能校验审计链")
+  return e.json(200, lib.verifyAuditChain())
 })
 
 routerAdd("POST", "/api/xueqing/exports", (e) => {
