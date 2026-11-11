@@ -8,6 +8,7 @@ import WuyuEntry from "../components/WuyuEntry.vue"
 import TeacherRoster from "../components/TeacherRoster.vue"
 import { highestRole } from "../shared/api.js"
 import { countEntryClick, resetEntrySession, resetWuyuSession } from "../shared/entry-session.js"
+import { planClear } from "../shared/clear-guard.js"
 import { flushOffline, pendingLabel } from "../shared/offline-db.js"
 import { ROLE_LABELS } from "../shared/menu.js"
 import { useSessionStore } from "../stores/session.js"
@@ -20,6 +21,7 @@ const entryKey = ref(0)
 const wuyuOpen = ref(false)
 const wuyuKey = ref(0)
 const pending = ref({ count: 0, stale: false })
+const clearMessage = ref("")
 const standalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true
 
 function openEntry() {
@@ -43,7 +45,25 @@ onMounted(async () => {
   pending.value = await pendingLabel()
 })
 
-function logout() {
+async function logout() {
+  clearMessage.value = ""
+  const before = await pendingLabel()
+  if (before.count > 0) {
+    await flushOffline()
+    const after = await pendingLabel()
+    const plan = planClear({
+      pending: before.count,
+      online: navigator.onLine,
+      uploaded: before.count - after.count,
+      failed: after.count > 0,
+      reason: "退出",
+    })
+    if (plan.action !== "clear") {
+      clearMessage.value = `还有 ${after.count} 条记录没传上去，现在清除会丢失。`
+      pending.value = after
+      return
+    }
+  }
   session.logout()
   router.push("/login")
 }
@@ -56,6 +76,9 @@ function logout() {
     @click-left="logout"
   />
   <main>
+    <p v-if="clearMessage">
+      {{ clearMessage }}
+    </p>
     <p v-if="!standalone">
       请先把本网站添加到手机主屏幕。没添加的话，没网时会打不开。
     </p>
