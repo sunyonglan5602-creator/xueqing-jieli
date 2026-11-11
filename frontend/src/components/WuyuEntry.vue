@@ -39,6 +39,8 @@ async function tap(item) {
       keywordCode: item.code,
       fact: fact.value.trim(),
       clientUid: crypto.randomUUID(),
+      clickCount: wuyuSession.clicks,
+      elapsedSeconds: Math.round((Date.now() - wuyuSession.startedAt) / 1000),
     }, session.token)
     saved.value = result.items
     message.value = "已保存 " + result.items.length + " 条，点击 " + wuyuSession.clicks + " 次，用时 " + Math.round((Date.now() - wuyuSession.startedAt) / 1000) + " 秒"

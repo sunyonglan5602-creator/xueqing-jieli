@@ -35,6 +35,7 @@ function saveWuyu(e) {
   if (!studentIds.length) throw new BadRequestError("请选择学生")
   const clientUid = String(body.clientUid || "")
   const saved = []
+  const metricRecords = []
   for (let i = 0; i < studentIds.length; i += 1) {
     let student = null
     try {
@@ -69,7 +70,19 @@ function saveWuyu(e) {
     record.set("confirmed", true)
     $app.save(record)
     saved.push(summary(record))
+    metricRecords.push({ uid: record.id })
   }
+  require(__hooks + "/metrics_api.js").recordLearning(auth, {
+    kind: "五育事例",
+    studentCount: saved.length,
+    tagCount: 1,
+    clickCount: Number(body.clickCount || 0),
+    elapsedSeconds: Number(body.elapsedSeconds || 0),
+    interrupted: false,
+    origin: "在线",
+    groupId: auth.get("school") || auth.id,
+    records: metricRecords,
+  })
   return e.json(200, { items: saved })
 }
 

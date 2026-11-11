@@ -70,6 +70,17 @@ function saveEntries(e) {
     $app.save(record)
     saved.push(summary(record))
   }
+  require(__hooks + "/metrics_api.js").recordLearning(auth, {
+    kind: "学情标签",
+    studentCount: saved.length,
+    tagCount: (body.knowledgeCode ? 1 : 0) + (body.errorCode ? 1 : 0),
+    clickCount: Number(body.clickCount || 0),
+    elapsedSeconds: Number(body.elapsedSeconds || 0),
+    interrupted: body.interrupted === true,
+    origin: body.source === "离线" ? "离线" : "在线",
+    groupId: String(body.classId || ""),
+    records: saved,
+  })
   return e.json(200, { items: saved })
 }
 

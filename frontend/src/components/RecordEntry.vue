@@ -111,6 +111,8 @@ async function save() {
       photo: photoOn.value ? photo.value : "",
       clientUid: crypto.randomUUID(),
       source: navigator.onLine ? "在线" : "离线",
+      clickCount: entrySession.clicks,
+      elapsedSeconds: Math.round((Date.now() - entrySession.startedAt) / 1000),
     }, session.token)
     savedClicks.value = entrySession.clicks
     message.value = "已保存 " + result.items.length + " 条，点击 " + entrySession.clicks + " 次，用时 " + Math.round((Date.now() - entrySession.startedAt) / 1000) + " 秒"
