@@ -725,6 +725,8 @@ function recordStudents(auth) {
     items.push({
       id: student.id,
       display_name: student.get("display_name"),
+      grade: student.get("grade") || "",
+      class_id: student.get("current_class") || "",
       consent_status: consentStatus,
       recordable: consentStatus === "已同意",
     })

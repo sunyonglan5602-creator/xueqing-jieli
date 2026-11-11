@@ -218,6 +218,20 @@ for (const student of [student1, student2]) {
     operator: teacherA.id,
   })
 }
+await ensure("teaching_assignments", `teacher='${teacherLocal.id}' && subject='语文' && class='${classA.id}'`, {
+  subject: "语文",
+  org: orgA.id,
+  school: schoolA.id,
+  class: classA.id,
+  teacher: teacherLocal.id,
+})
+await ensure("teaching_assignments", `teacher='${teacherLocal.id}' && subject='数学' && class='${classA.id}'`, {
+  subject: "数学",
+  org: orgA.id,
+  school: schoolA.id,
+  class: classA.id,
+  teacher: teacherLocal.id,
+})
 await ensure("class_memberships", `student='${student1.id}' && class='${classA.id}'`, {
   student: student1.id,
   class: classA.id,

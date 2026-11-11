@@ -198,7 +198,17 @@ function entryCatalog(lib, auth) {
     if (!lib.assignmentActive(row)) continue
     const name = row.get("subject")
     if (!byName[name]) byName[name] = []
-    byName[name].push(row.get("class"))
+    const classId = row.get("class")
+    let klass = null
+    try {
+      klass = $app.findRecordById("classes", classId)
+    } catch (err) {
+      klass = null
+    }
+    if (!klass) continue
+    let seen = false
+    for (const item of byName[name]) if (item.id === klass.id) seen = true
+    if (!seen) byName[name].push({ id: klass.id, name: klass.get("name"), grades: rules.asList(klass.get("grades")) })
   }
   const subjects = []
   for (const name of Object.keys(byName)) {
