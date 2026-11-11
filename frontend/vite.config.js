@@ -4,8 +4,20 @@ import { VitePWA } from "vite-plugin-pwa"
 
 const pbUrl = process.env.VITE_PB_URL || "http://127.0.0.1:8090"
 
+function pocketbaseCjsDefault() {
+  return {
+    name: "pocketbase-cjs-default",
+    enforce: "pre",
+    transform(code, id) {
+      if (!id.includes("/pocketbase/pb_hooks/") || !code.includes("module.exports")) return null
+      return code.replace("module.exports =", "export default")
+    },
+  }
+}
+
 export default defineConfig({
   plugins: [
+    pocketbaseCjsDefault(),
     vue(),
     VitePWA({
       registerType: "autoUpdate",

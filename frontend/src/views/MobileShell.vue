@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from "vue"
+import { onMounted, onUnmounted, ref } from "vue"
 import { NavBar } from "vant"
 import { useRouter } from "vue-router"
 import CommentDraft from "../components/CommentDraft.vue"
@@ -65,10 +65,19 @@ function openQuestion() {
   commentOpen.value = false
 }
 
-onMounted(async () => {
-  resetEntrySession()
+async function syncPending() {
   await flushOffline()
   pending.value = await pendingLabel()
+}
+
+onMounted(async () => {
+  resetEntrySession()
+  window.addEventListener("online", syncPending)
+  await syncPending()
+})
+
+onUnmounted(() => {
+  window.removeEventListener("online", syncPending)
 })
 
 async function logout() {
