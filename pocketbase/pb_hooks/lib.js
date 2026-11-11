@@ -1247,6 +1247,7 @@ module.exports = {
   CONSENT_TEMPLATE,
   saveConsent,
   saveConsentBatch,
+  assertConsent,
   recordStudents,
   prepareVolunteerProfile,
   prepareGrant,

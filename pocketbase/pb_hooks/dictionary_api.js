@@ -1,4 +1,5 @@
 function seedDictionary(app) {
+  seedWuyu(app)
   const data = require(__hooks + "/dictionary_data.js")
   const current = findOne("dict_meta", "id != ''", {})
   if (current && Number(current.get("version") || 0) >= data.version) return
@@ -80,6 +81,37 @@ function flagValue(bodyValue, current, field) {
   if (bodyValue === false) return false
   if (current) return current.get(field) === true
   return false
+}
+
+function seedWuyu(app) {
+  let ready = true
+  try {
+    app.findCollectionByNameOrId("dict_wuyu_keywords")
+  } catch (err) {
+    ready = false
+  }
+  if (!ready) return
+  const data = require(__hooks + "/dictionary_wuyu.js")
+  for (const item of data.dimensions) {
+    if (findOneOn(app, "dict_wuyu_dimensions", "code = {:code}", { code: item.code })) continue
+    const record = new Record(app.findCollectionByNameOrId("dict_wuyu_dimensions"))
+    record.set("code", item.code)
+    record.set("name", item.name)
+    record.set("icon", item.icon)
+    record.set("color", item.color)
+    app.save(record)
+  }
+  for (const item of data.keywords) {
+    if (findOneOn(app, "dict_wuyu_keywords", "code = {:code}", { code: item.code })) continue
+    const record = new Record(app.findCollectionByNameOrId("dict_wuyu_keywords"))
+    record.set("code", item.code)
+    record.set("dimension", item.dimension)
+    record.set("keyword", item.keyword)
+    record.set("low_text", item.low_text)
+    record.set("high_text", item.high_text)
+    record.set("sort", item.sort)
+    app.save(record)
+  }
 }
 
 function subjectRecord(app, subject) {
