@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from "vue"
 import { api } from "../shared/api.js"
+import { submitOffline } from "../shared/offline-db.js"
 import { countWuyuClick, wuyuSession } from "../shared/entry-session.js"
 import { useSessionStore } from "../stores/session.js"
 
@@ -33,11 +34,12 @@ async function tap(item) {
   countWuyuClick()
   message.value = ""
   try {
-    const result = await api("/api/xueqing/wuyu", {
-      token: session.token,
-      method: "POST",
-      body: { studentIds: picked.value, keywordCode: item.code, fact: fact.value.trim(), clientUid: crypto.randomUUID() },
-    })
+    const result = await submitOffline("/api/xueqing/wuyu", {
+      studentIds: picked.value,
+      keywordCode: item.code,
+      fact: fact.value.trim(),
+      clientUid: crypto.randomUUID(),
+    }, session.token)
     saved.value = result.items
     message.value = "已保存 " + result.items.length + " 条，点击 " + wuyuSession.clicks + " 次，用时 " + Math.round((Date.now() - wuyuSession.startedAt) / 1000) + " 秒"
   } catch (err) {

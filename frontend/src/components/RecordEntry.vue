@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from "vue"
 import { api } from "../shared/api.js"
+import { submitOffline } from "../shared/offline-db.js"
 import { countEntryClick, entrySession } from "../shared/entry-session.js"
 import { compressPhoto } from "../shared/photo.js"
 import { useSessionStore } from "../stores/session.js"
@@ -97,24 +98,20 @@ async function save() {
   countEntryClick()
   message.value = ""
   try {
-    const result = await api("/api/xueqing/entries", {
-      token: session.token,
-      method: "POST",
-      body: {
-        classId: classId.value,
-        subjectCode: subjectCode.value,
-        studentIds: picked.value,
-        knowledgeCode: knowledgeCode.value,
-        errorCode: showErrors.value ? errorCode.value : "",
-        textbook: textbook.value,
-        statusMark: statusMark.value,
-        note: note.value.trim(),
-        scene: "课堂",
-        photo: photoOn.value ? photo.value : "",
-        clientUid: crypto.randomUUID(),
-        source: "在线",
-      },
-    })
+    const result = await submitOffline("/api/xueqing/entries", {
+      classId: classId.value,
+      subjectCode: subjectCode.value,
+      studentIds: picked.value,
+      knowledgeCode: knowledgeCode.value,
+      errorCode: showErrors.value ? errorCode.value : "",
+      textbook: textbook.value,
+      statusMark: statusMark.value,
+      note: note.value.trim(),
+      scene: "课堂",
+      photo: photoOn.value ? photo.value : "",
+      clientUid: crypto.randomUUID(),
+      source: navigator.onLine ? "在线" : "离线",
+    }, session.token)
     savedClicks.value = entrySession.clicks
     message.value = "已保存 " + result.items.length + " 条，点击 " + entrySession.clicks + " 次，用时 " + Math.round((Date.now() - entrySession.startedAt) / 1000) + " 秒"
     remember()

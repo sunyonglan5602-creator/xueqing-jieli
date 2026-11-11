@@ -8,6 +8,7 @@ import WuyuEntry from "../components/WuyuEntry.vue"
 import TeacherRoster from "../components/TeacherRoster.vue"
 import { highestRole } from "../shared/api.js"
 import { countEntryClick, resetEntrySession, resetWuyuSession } from "../shared/entry-session.js"
+import { flushOffline, pendingLabel } from "../shared/offline-db.js"
 import { ROLE_LABELS } from "../shared/menu.js"
 import { useSessionStore } from "../stores/session.js"
 
@@ -18,6 +19,8 @@ const entryOpen = ref(false)
 const entryKey = ref(0)
 const wuyuOpen = ref(false)
 const wuyuKey = ref(0)
+const pending = ref({ count: 0, stale: false })
+const standalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true
 
 function openEntry() {
   resetEntrySession()
@@ -34,7 +37,11 @@ function openWuyu() {
   entryOpen.value = false
 }
 
-onMounted(resetEntrySession)
+onMounted(async () => {
+  resetEntrySession()
+  await flushOffline()
+  pending.value = await pendingLabel()
+})
 
 function logout() {
   session.logout()
@@ -49,6 +56,15 @@ function logout() {
     @click-left="logout"
   />
   <main>
+    <p v-if="!standalone">
+      请先把本网站添加到手机主屏幕。没添加的话，没网时会打不开。
+    </p>
+    <p
+      v-if="pending.count"
+      :style="pending.stale ? 'color:#b00020' : ''"
+    >
+      {{ pending.stale ? `还有 ${pending.count} 条记录没传上去，请打开网站把记录传上去。` : `离线 · 待补传 ${pending.count} 条` }}
+    </p>
     <p v-if="role === 'education_bureau_viewer'">
       {{ ROLE_LABELS.education_bureau_viewer }}一期不开放。
     </p>
