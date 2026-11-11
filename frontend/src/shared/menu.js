@@ -10,7 +10,13 @@ export const ROLE_LABELS = {
 export function phaseEntries(record) {
   const roles = record?.roles || []
   const items = []
-  if (roles.includes("teacher")) items.push({ id: "m9", label: "练习组卷", phase: "二期开放" })
+  if (roles.includes("teacher")) {
+    items.push({ id: "m9", label: "练习组卷", phase: "二期开放" })
+    items.push({ id: "m13", label: "校本资源库", phase: "老师自建题" })
+    items.push({ id: "m13-courseware", label: "课件", phase: "二期开放" })
+    items.push({ id: "m13-lesson", label: "教案", phase: "二期开放" })
+    items.push({ id: "m13-textbook", label: "校本教材上传", phase: "二期开放" })
+  }
   if (roles.includes("org_admin") || roles.includes("education_bureau_viewer")) {
     items.push({ id: "m10", label: "区域教研", phase: "二期开放" })
   }

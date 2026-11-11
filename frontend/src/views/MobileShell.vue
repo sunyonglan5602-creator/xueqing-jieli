@@ -3,6 +3,7 @@ import { onMounted, ref } from "vue"
 import { NavBar } from "vant"
 import { useRouter } from "vue-router"
 import CommentDraft from "../components/CommentDraft.vue"
+import QuestionForm from "../components/QuestionForm.vue"
 import PhaseMenu from "../components/PhaseMenu.vue"
 import RecordEntry from "../components/RecordEntry.vue"
 import WuyuEntry from "../components/WuyuEntry.vue"
@@ -23,6 +24,8 @@ const wuyuOpen = ref(false)
 const wuyuKey = ref(0)
 const commentOpen = ref(false)
 const commentKey = ref(0)
+const questionOpen = ref(false)
+const questionKey = ref(0)
 const pending = ref({ count: 0, stale: false })
 const clearMessage = ref("")
 const standalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true
@@ -34,6 +37,7 @@ function openEntry() {
   entryOpen.value = true
   wuyuOpen.value = false
   commentOpen.value = false
+  questionOpen.value = false
 }
 
 function openWuyu() {
@@ -42,6 +46,7 @@ function openWuyu() {
   wuyuOpen.value = true
   entryOpen.value = false
   commentOpen.value = false
+  questionOpen.value = false
 }
 
 function openComment() {
@@ -49,6 +54,15 @@ function openComment() {
   commentOpen.value = true
   entryOpen.value = false
   wuyuOpen.value = false
+  questionOpen.value = false
+}
+
+function openQuestion() {
+  questionKey.value += 1
+  questionOpen.value = true
+  entryOpen.value = false
+  wuyuOpen.value = false
+  commentOpen.value = false
 }
 
 onMounted(async () => {
@@ -128,6 +142,13 @@ async function logout() {
     >
       阶段评语
     </button>
+    <button
+      v-if="role === 'teacher'"
+      type="button"
+      @click="openQuestion"
+    >
+      老师自建题
+    </button>
     <RecordEntry
       v-if="entryOpen"
       :key="entryKey"
@@ -143,7 +164,12 @@ async function logout() {
       :key="commentKey"
       @close="commentOpen = false"
     />
-    <TeacherRoster v-if="role === 'teacher' && !entryOpen && !wuyuOpen && !commentOpen" />
+    <QuestionForm
+      v-if="questionOpen"
+      :key="questionKey"
+      @close="questionOpen = false"
+    />
+    <TeacherRoster v-if="role === 'teacher' && !entryOpen && !wuyuOpen && !commentOpen && !questionOpen" />
     <PhaseMenu />
   </main>
 </template>
