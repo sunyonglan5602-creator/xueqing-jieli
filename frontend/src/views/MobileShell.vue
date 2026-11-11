@@ -2,6 +2,7 @@
 import { onMounted, ref } from "vue"
 import { NavBar } from "vant"
 import { useRouter } from "vue-router"
+import CommentDraft from "../components/CommentDraft.vue"
 import PhaseMenu from "../components/PhaseMenu.vue"
 import RecordEntry from "../components/RecordEntry.vue"
 import WuyuEntry from "../components/WuyuEntry.vue"
@@ -20,6 +21,8 @@ const entryOpen = ref(false)
 const entryKey = ref(0)
 const wuyuOpen = ref(false)
 const wuyuKey = ref(0)
+const commentOpen = ref(false)
+const commentKey = ref(0)
 const pending = ref({ count: 0, stale: false })
 const clearMessage = ref("")
 const standalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true
@@ -30,6 +33,7 @@ function openEntry() {
   entryKey.value += 1
   entryOpen.value = true
   wuyuOpen.value = false
+  commentOpen.value = false
 }
 
 function openWuyu() {
@@ -37,6 +41,14 @@ function openWuyu() {
   wuyuKey.value += 1
   wuyuOpen.value = true
   entryOpen.value = false
+  commentOpen.value = false
+}
+
+function openComment() {
+  commentKey.value += 1
+  commentOpen.value = true
+  entryOpen.value = false
+  wuyuOpen.value = false
 }
 
 onMounted(async () => {
@@ -109,6 +121,13 @@ async function logout() {
     >
       记一笔
     </button>
+    <button
+      v-if="role === 'teacher'"
+      type="button"
+      @click="openComment"
+    >
+      阶段评语
+    </button>
     <RecordEntry
       v-if="entryOpen"
       :key="entryKey"
@@ -119,7 +138,12 @@ async function logout() {
       :key="wuyuKey"
       @close="wuyuOpen = false"
     />
-    <TeacherRoster v-if="role === 'teacher' && !entryOpen && !wuyuOpen" />
+    <CommentDraft
+      v-if="commentOpen"
+      :key="commentKey"
+      @close="commentOpen = false"
+    />
+    <TeacherRoster v-if="role === 'teacher' && !entryOpen && !wuyuOpen && !commentOpen" />
     <PhaseMenu />
   </main>
 </template>

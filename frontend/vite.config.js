@@ -30,6 +30,7 @@ export default defineConfig({
     }),
   ],
   server: {
+    fs: { allow: [".."] },
     proxy: {
       "/api": pbUrl,
     },

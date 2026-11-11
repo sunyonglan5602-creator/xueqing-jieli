@@ -255,6 +255,96 @@ await ensure("learning_records", `uid='01900000-0000-7000-8000-000000000101'`, {
   author: teacherA.id,
 })
 
+await ensure("learning_records", "uid='01900000-0000-7000-8000-000000000111'", {
+  uid: "01900000-0000-7000-8000-000000000111",
+  body: "朗读课文更流畅了",
+  version: 1,
+  org: orgA.id,
+  student: student1.id,
+  class: classA.id,
+  subject: "语文",
+  subject_code: "C",
+  grade: "三年级",
+  textbook: "人教版",
+  knowledge_code: "C-3-001",
+  author: teacherLocal.id,
+  confirmed: true,
+})
+await ensure("learning_records", "uid='01900000-0000-7000-8000-000000000112'", {
+  uid: "01900000-0000-7000-8000-000000000112",
+  body: "能把段落按顺序说下来",
+  version: 1,
+  org: orgA.id,
+  student: student2.id,
+  class: classA.id,
+  subject: "语文",
+  subject_code: "C",
+  grade: "四年级",
+  textbook: "人教版",
+  knowledge_code: "C-4-001",
+  author: teacherLocal.id,
+  confirmed: true,
+})
+await ensure("learning_records", "uid='01900000-0000-7000-8000-000000000113'", {
+  uid: "01900000-0000-7000-8000-000000000113",
+  body: "历史标签不进评语样本",
+  version: 1,
+  org: orgA.id,
+  student: student1.id,
+  class: classA.id,
+  subject: "语文",
+  subject_code: "C",
+  grade: "三年级",
+  textbook: "人教版",
+  knowledge_code: "C-3-002",
+  author: teacherLocal.id,
+  confirmed: true,
+  status_mark: "历史",
+})
+await ensure("learning_records", "uid='01900000-0000-7000-8000-000000000114'", {
+  uid: "01900000-0000-7000-8000-000000000114",
+  body: "未确认不进评语样本",
+  version: 1,
+  org: orgA.id,
+  student: student1.id,
+  class: classA.id,
+  subject: "语文",
+  subject_code: "C",
+  grade: "三年级",
+  textbook: "人教版",
+  knowledge_code: "C-3-001",
+  author: teacherLocal.id,
+  confirmed: false,
+})
+await ensure("wuyu_records", "client_key='seed-wuyu-g3'", {
+  student: student1.id,
+  org: orgA.id,
+  school: schoolA.id,
+  class: classA.id,
+  teacher: teacherLocal.id,
+  keyword_code: "de-03",
+  dimension: "de",
+  wording: "遵守了课堂或活动中事先说明的一条约定",
+  grade: "三年级",
+  body: "把椅子搬回原处",
+  client_key: "seed-wuyu-g3",
+  confirmed: true,
+})
+await ensure("wuyu_records", "client_key='seed-wuyu-g4'", {
+  student: student2.id,
+  org: orgA.id,
+  school: schoolA.id,
+  class: classA.id,
+  teacher: teacherLocal.id,
+  keyword_code: "de-05",
+  dimension: "de",
+  wording: "在分组活动里完成自己的分工，或具体帮助了同学一项可见的事",
+  grade: "四年级",
+  body: "",
+  client_key: "seed-wuyu-g4",
+  confirmed: true,
+})
+
 console.log(`假数据已就绪。演示口令：${demoPassword}`)
 console.log(`演示班 ${classA.id}，演示生 ${student1.id} / ${student2.id}`)
 console.log(`协会 ${orgA.id} / ${orgB.id}，学校 ${schoolA.id} / ${schoolB.id}`)
