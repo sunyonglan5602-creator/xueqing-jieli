@@ -86,6 +86,8 @@ test("评语模板排除污名化词，五育用关键词句，复式班按年�
   assert.equal(grouped.groups[0].notice, "当前是三年级的评语。本班其他年级请切换后查看。")
   assert.equal(JSON.stringify(grouped).includes("全班"), false)
   assert.deepEqual(templates.polishComment(), { connected: false, phase: "一期不接通", text: "" })
+  assert.equal(templates.editDistance("原文", "原文"), 0)
+  assert.equal(templates.editDistance("原文", "原文差生"), 2)
 
   for (const file of ["pocketbase/pb_hooks/comment_templates.js", "pocketbase/pb_hooks/comments_api.js", "pocketbase/pb_hooks/comments.pb.js"]) {
     const source = readFileSync(new URL("../" + file, import.meta.url), "utf8")

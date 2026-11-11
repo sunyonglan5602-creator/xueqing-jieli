@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from "vue"
 import { api } from "../shared/api.js"
 import { buildStudentDraft, DRAFT_HINT, gradeNotice, polishComment } from "../shared/comment-draft.js"
+import { commentForbidden, commentForbiddenMessage } from "../shared/forbidden-words.js"
 import { submitOffline } from "../shared/offline-db.js"
 import { useSessionStore } from "../stores/session.js"
 
@@ -12,6 +13,7 @@ const grade = ref("")
 const period = ref("本阶段")
 const edited = ref({})
 const message = ref("")
+const warnedStudent = ref("")
 const startedAt = ref(String(Date.now()))
 const polish = polishComment()
 
@@ -67,9 +69,16 @@ function generate() {
   if (!drafts.value.some((item) => item.draft.sentences.length)) message.value = "本阶段没有已确认、可写入评语的记录。"
 }
 
-async function confirm(item) {
+async function confirm(item, force) {
   message.value = ""
   const text = edited.value[item.student.id] || ""
+  const hit = commentForbidden(text, sources.value?.forbidden || [])
+  if (hit && !force) {
+    warnedStudent.value = item.student.id
+    message.value = commentForbiddenMessage(hit)
+    return
+  }
+  warnedStudent.value = ""
   try {
     const saved = await submitOffline("/api/xueqing/comments/confirm", {
       classId: sources.value.classId,
@@ -79,6 +88,7 @@ async function confirm(item) {
       body: text,
       sentences: item.draft.sentences,
       startedAt: startedAt.value,
+      confirmWords: Boolean(hit),
       clientUid: crypto.randomUUID(),
     }, session.token)
     sources.value.comments = (sources.value.comments || []).concat(saved)
@@ -159,9 +169,16 @@ onMounted(load)
         <button
           type="button"
           :disabled="!edited[item.student.id]"
-          @click="confirm(item)"
+          @click="confirm(item, false)"
         >
           确认评语
+        </button>
+        <button
+          v-if="warnedStudent === item.student.id"
+          type="button"
+          @click="confirm(item, true)"
+        >
+          仍要这样写，确认后保存
         </button>
       </template>
     </article>

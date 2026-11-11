@@ -202,6 +202,31 @@ function polishComment() {
   return { connected: false, phase: "一期不接通", text: "" }
 }
 
+function editDistance(leftText, rightText) {
+  const left = String(leftText || "")
+  const right = String(rightText || "")
+  const width = right.length
+  let prev = []
+  let curr = []
+  for (let column = 0; column <= width; column += 1) prev[column] = column
+  for (let row = 1; row <= left.length; row += 1) {
+    curr[0] = row
+    for (let column = 1; column <= width; column += 1) {
+      const swap = left.charAt(row - 1) === right.charAt(column - 1) ? 0 : 1
+      const del = prev[column] + 1
+      const ins = curr[column - 1] + 1
+      const sub = prev[column - 1] + swap
+      let best = del < ins ? del : ins
+      if (sub < best) best = sub
+      curr[column] = best
+    }
+    const keep = prev
+    prev = curr
+    curr = keep
+  }
+  return prev[width]
+}
+
 module.exports = {
   NEXT_STEP,
   DRAFT_HINT,
@@ -215,4 +240,5 @@ module.exports = {
   parseMarkers,
   missingMarkers,
   polishComment,
+  editDistance,
 }

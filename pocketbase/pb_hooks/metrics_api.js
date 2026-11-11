@@ -44,6 +44,7 @@ function listMetrics(e) {
   if (lib.rankOf(auth) !== "school_admin" && lib.rankOf(auth) !== "org_admin") throw new NotFoundError("不存在")
   const table = lib.readQuery(e, "table")
   if (table === "e6") return e.json(200, { items: listE6(auth) })
+  if (table === "e5") return e.json(200, listE5(auth))
   if (table === "e2") return e.json(200, { items: listE2(auth) })
   if (table !== "e1") throw new NotFoundError("不存在")
   const rows = $app.findRecordsByFilter("metric_e1", "org = {:org}", "-client_created_at", 0, 0, { org: auth.get("org") })
@@ -104,6 +105,57 @@ function listE6(auth) {
   return items
 }
 
+function recordComment(auth, input) {
+  const teacherSeq = aliasSeq(auth.get("org") || "", "teacher", auth.id)
+  const row = new Record($app.findCollectionByNameOrId("metric_e5"))
+  if (auth.get("org")) row.set("org", auth.get("org"))
+  row.set("teacher_seq", teacherSeq)
+  row.set("generated_chars", input.generatedChars)
+  row.set("final_chars", input.finalChars)
+  row.set("edit_distance", input.editDistance)
+  row.set("modified", input.modified === true)
+  row.set("elapsed_seconds", elapsedSeconds(input.startedAt, input.confirmedAt))
+  row.set("confirmed_at", input.confirmedAt)
+  $app.save(row)
+}
+
+function listE5(auth) {
+  const rows = $app.findRecordsByFilter("metric_e5", "org = {:org}", "confirmed_at", 0, 0, { org: auth.get("org") })
+  const items = []
+  let modified = 0
+  for (let i = 0; i < rows.length; i += 1) {
+    const changed = rows[i].get("modified") === true
+    if (changed) modified += 1
+    items.push({
+      教师序号: rows[i].get("teacher_seq"),
+      模板生成字数: rows[i].get("generated_chars"),
+      最终字数: rows[i].get("final_chars"),
+      编辑距离: rows[i].get("edit_distance"),
+      是否修改: changed,
+      耗时秒数: rows[i].get("elapsed_seconds") || 0,
+      确认时间: rows[i].get("confirmed_at") || "",
+    })
+  }
+  return {
+    items,
+    教师修改率: {
+      修改过的评语数: modified,
+      已确认评语数: items.length,
+      比率: items.length ? modified / items.length : 0,
+    },
+  }
+}
+
+function elapsedSeconds(startedAt, confirmedAt) {
+  const start = Number(startedAt)
+  const end = Date.parse(String(confirmedAt || ""))
+  if (!start || Number.isNaN(end)) return 0
+  const seconds = Math.round((end - start) / 1000)
+  if (seconds < 0) return 0
+  if (seconds > 86400) return 86400
+  return seconds
+}
+
 function writeE2(auth, teacherSeq, sourceId, firstResult, finalStatus, conflict) {
   const row = new Record($app.findCollectionByNameOrId("metric_e2"))
   if (auth.get("org")) row.set("org", auth.get("org"))
@@ -147,4 +199,4 @@ function newId() {
   return time.slice(-12) + $security.randomStringWithAlphabet(24, "0123456789abcdef")
 }
 
-module.exports = { recordLearning, recordSubmission, listMetrics }
+module.exports = { recordLearning, recordSubmission, recordComment, listMetrics }

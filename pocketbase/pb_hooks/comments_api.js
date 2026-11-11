@@ -97,6 +97,12 @@ function confirm(e) {
   if (!draft.sentences.length || templates.missingMarkers(text, draft.sentences).length) {
     throw new BadRequestError("不能删掉来源标记")
   }
+  if (body.confirmWords !== true) {
+    const rules = require(__hooks + "/dict_rules.js")
+    const hit = rules.forbiddenHit(text, forbiddenRows(rules))
+    if (hit) throw new BadRequestError(rules.forbiddenMessage(hit) + "仍要这样写，请确认后再保存。")
+  }
+  const confirmedAt = new Date().toISOString()
   const record = open || new Record($app.findCollectionByNameOrId("stage_comments"))
   writeRecord(record, auth, klass, student, {
     grade,
@@ -107,9 +113,17 @@ function confirm(e) {
     sentences: draft.sentences,
     clientKey,
     startedAt: String(body.startedAt || ""),
-    confirmedAt: new Date().toISOString(),
+    confirmedAt,
   })
   $app.save(record)
+  require(__hooks + "/metrics_api.js").recordComment(auth, {
+    generatedChars: String(draft.generatedBody || "").length,
+    finalChars: text.length,
+    editDistance: templates.editDistance(draft.generatedBody, text),
+    modified: draft.generatedBody !== text,
+    startedAt: String(body.startedAt || ""),
+    confirmedAt,
+  })
   return e.json(200, present(record))
 }
 
@@ -227,7 +241,21 @@ function packSources(lib, auth, klass) {
     students,
     learning,
     wuyu,
+    forbidden: forbiddenRows(rules),
   }
+}
+
+function forbiddenRows(rules) {
+  const rows = $app.findRecordsByFilter("dict_forbidden", "id != ''", "", 0, 0)
+  const items = []
+  for (let i = 0; i < rows.length; i += 1) {
+    items.push({
+      phrase: rows[i].get("phrase"),
+      alternative: rows[i].get("alternative") || "",
+      ignores: rules.asList(rows[i].get("ignores")),
+    })
+  }
+  return items
 }
 
 function gradeList(rules, klass, students) {

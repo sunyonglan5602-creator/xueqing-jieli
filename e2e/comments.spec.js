@@ -36,3 +36,21 @@ test("复式班评语按年级分开，断网仍能生成并确认", async ({ pa
   await expect(page.getByText("已确认，未发布")).toBeVisible()
   await expect(page.getByText("朗读课文更流畅了")).toBeVisible()
 })
+
+test("评语命中禁用词先提醒，确认后才保存", async ({ page }) => {
+  await page.goto("/login")
+  await page.getByLabel("账号").fill("demo-teacher-local")
+  await page.getByLabel("口令").fill("Demo-Pass-0000")
+  await page.getByRole("button", { name: "登录" }).click()
+  await page.getByRole("button", { name: "阶段评语" }).click()
+  await page.getByRole("button", { name: "四年级" }).click()
+  await page.getByLabel("时间范围").fill("禁用词验收")
+  await page.getByRole("button", { name: "生成草稿" }).click()
+  const box = page.locator("textarea")
+  await box.fill(`${await box.inputValue()}差生`)
+  await page.getByRole("button", { name: "确认评语" }).click()
+  await expect(page.getByText("这句话里有「差生」")).toBeVisible()
+  await page.getByRole("button", { name: "仍要这样写，确认后保存" }).click()
+  await expect(page.getByText("已确认，未发布")).toBeVisible()
+})
+
