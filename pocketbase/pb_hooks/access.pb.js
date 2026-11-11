@@ -11,7 +11,7 @@ routerUse((e) => {
   const parts = lib.requestPath(e).split("/")
   if ((parts.length !== 5 && parts.length !== 6) || parts[1] !== "api" || parts[2] !== "collections" || parts[4] !== "records") return e.next()
   const name = parts[3]
-  if (name === "wuyu_records" || name === "stage_comments" || name === "teacher_questions") throw new NotFoundError("不存在")
+  if (name === "wuyu_records" || name === "stage_comments" || name === "teacher_questions" || name === "practice_sheets") throw new NotFoundError("不存在")
   if (parts.length !== 6) return e.next()
   const guarded = ["organizations", "schools", "classes", "students", "class_memberships", "learning_records", "parent_student_bindings", "handover_packages", "handover_reviews", "teaching_assignments", "detail_grants", "teacher_profiles"]
   if (guarded.indexOf(name) < 0) return e.next()

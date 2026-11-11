@@ -23,6 +23,8 @@ const originalAuthorized = ref(false)
 const shareToOrg = ref(false)
 const message = ref("")
 const items = ref([])
+const picked = ref([])
+const sheet = ref(null)
 
 const subject = computed(() => subjects.value.find((item) => item.code === subjectCode.value) || null)
 const terms = computed(() => (subject.value?.terms || []).filter((item) => !grade.value || (item.grades || []).includes(grade.value)))
@@ -75,6 +77,23 @@ async function save() {
   }
 }
 
+function printSheet() {
+  window.print()
+}
+
+async function makeSheet() {
+  message.value = ""
+  try {
+    sheet.value = await api("/api/xueqing/practice-sheets", {
+      token: session.token,
+      method: "POST",
+      body: { questionIds: picked.value },
+    })
+  } catch (err) {
+    message.value = err.message
+  }
+}
+
 async function change(item, path) {
   message.value = ""
   try {
@@ -99,6 +118,7 @@ onMounted(load)
       </button>
     </p>
     <p>老师自建题。课件、教案、校本教材上传二期开放。</p>
+    <p>系统不自动按错题推送，也不生成变式题。</p>
     <p>
       <label>
         学科
@@ -259,11 +279,42 @@ onMounted(load)
     <p v-if="message">
       {{ message }}
     </p>
+    <p>
+      <button
+        type="button"
+        @click="makeSheet"
+      >
+        生成练习单
+      </button>
+    </p>
+    <section v-if="sheet">
+      <h2>{{ sheet.title }}</h2>
+      <p
+        v-for="(item, index) in sheet.items"
+        :key="item.id"
+      >
+        {{ index + 1 }}. {{ item.stem }}
+      </p>
+      <button
+        type="button"
+        @click="printSheet"
+      >
+        打印
+      </button>
+    </section>
     <article
       v-for="item in items"
       :key="item.id"
     >
       <p>{{ item.stem }}（{{ item.visibility }}，{{ item.status }}）</p>
+      <label v-if="item.status === '在用'">
+        <input
+          v-model="picked"
+          type="checkbox"
+          :value="item.id"
+        >
+        选入练习单
+      </label>
       <button
         type="button"
         @click="change(item, '/api/xueqing/questions/unpublish')"
