@@ -1,5 +1,4 @@
 const TEACHER_TYPES = ["短期支教", "长期支教", "在编或特岗教师"]
-const GRADES = ["一年级", "二年级", "三年级", "四年级", "五年级", "六年级"]
 const LOCK_AFTER = 5
 const LOCK_MS = 15 * 60 * 1000
 const RANK = ["platform_admin", "org_admin", "school_admin", "teacher", "parent", "education_bureau_viewer"]
@@ -787,6 +786,7 @@ function prepareAssignment(auth, record) {
   if (teacher.get("school") !== auth.get("school") || !hasRole(teacher, "teacher")) throw new NotFoundError("不存在")
   const subject = String(record.get("subject") || "").trim()
   if (!subject || subject.length > 20) throw new BadRequestError("请填写任课学科")
+  assertKnownSubject(subject)
   record.set("subject", subject)
   record.set("org", klass.get("org"))
   record.set("school", klass.get("school"))
@@ -885,26 +885,58 @@ function classRecordVisible(record, onText) {
 }
 
 function toList(value) {
-  if (!value) return []
-  if (typeof value === "string") {
-    try {
-      const parsed = JSON.parse(value)
-      if (Array.isArray(parsed)) return parsed
-    } catch (err) {
-      return [value]
-    }
-    return value ? [value] : []
+  return require(__hooks + "/dict_rules.js").asList(value)
+}
+
+function gradeNames() {
+  let rows = []
+  try {
+    rows = $app.findRecordsByFilter("dict_grades", "active = true", "sort_order", 0, 0)
+  } catch (err) {
+    rows = []
   }
-  const list = []
-  if (typeof value.length === "number") {
-    for (let i = 0; i < value.length; i += 1) list.push(value[i])
+  const names = []
+  for (const row of rows) names.push(row.get("name"))
+  return names
+}
+
+function assertKnownGrade(grade) {
+  if (gradeNames().indexOf(grade) < 0) throw new BadRequestError("请填写年级")
+}
+
+function assertGradeList(value) {
+  const grades = toList(value)
+  const known = gradeNames()
+  for (let i = 0; i < grades.length; i += 1) {
+    if (known.indexOf(grades[i]) < 0) throw new BadRequestError("请填写年级")
   }
-  return list
+}
+
+function knownGradeSelection(value) {
+  const grades = toList(value)
+  const known = gradeNames()
+  const picked = []
+  for (let i = 0; i < grades.length; i += 1) {
+    if (known.indexOf(grades[i]) < 0) throw new BadRequestError("请填写年级")
+    if (picked.indexOf(grades[i]) < 0) picked.push(grades[i])
+  }
+  return picked
+}
+
+function assertKnownSubject(name) {
+  let rows = []
+  try {
+    rows = $app.findRecordsByFilter("dict_subjects", "name = {:name} && active = true", "", 1, 0, { name: name })
+  } catch (err) {
+    rows = []
+  }
+  if (!rows.length) throw new BadRequestError("请从学科字典里选择")
+  return rows[0]
 }
 
 function prepareStudent(auth, record) {
   const grade = record.get("grade") || ""
-  if (GRADES.indexOf(grade) < 0) throw new BadRequestError("请填写年级")
+  assertKnownGrade(grade)
   const classId = record.get("current_class") || ""
   if (!classId) throw new BadRequestError("请选择班级")
   let klass = null
@@ -961,7 +993,7 @@ function importStudents(auth, classId, csv) {
       errors.push("第" + rowNumber + "行：请填写姓名")
       continue
     }
-    if (GRADES.indexOf(grade) < 0) {
+    if (gradeNames().indexOf(grade) < 0) {
       errors.push("第" + rowNumber + "行：请填写年级")
       continue
     }
@@ -1103,7 +1135,7 @@ function moveStudent(auth, body) {
     throw new NotFoundError("不存在")
   }
   const grade = kind === "升级" ? String(body.grade || "") : (student.get("grade") || "")
-  if (kind === "升级" && (GRADES.indexOf(grade) < 0 || grade === (student.get("grade") || ""))) {
+  if (kind === "升级" && (gradeNames().indexOf(grade) < 0 || grade === (student.get("grade") || ""))) {
     throw new BadRequestError("升级请选择新的年级")
   }
   if (kind === "转班" && klass.id === student.get("current_class")) throw new BadRequestError("请选择另一个班")
@@ -1157,7 +1189,12 @@ function refreshActiveParents(studentId) {
 
 module.exports = {
   TEACHER_TYPES,
-  GRADES,
+  gradeNames,
+  assertKnownGrade,
+  assertGradeList,
+  knownGradeSelection,
+  assertKnownSubject,
+  assignmentActive: stillActive,
   prepareStudent,
   importStudents,
   mergeStudents,

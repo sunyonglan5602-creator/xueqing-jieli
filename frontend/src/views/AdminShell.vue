@@ -2,6 +2,7 @@
 import { onMounted, ref } from "vue"
 import { useRouter } from "vue-router"
 import BatchConsent from "../components/BatchConsent.vue"
+import DictionaryPanel from "../components/DictionaryPanel.vue"
 import ConsentForm from "../components/ConsentForm.vue"
 import EnrollmentPanel from "../components/EnrollmentPanel.vue"
 import OrgStudents from "../components/OrgStudents.vue"
@@ -181,6 +182,7 @@ onMounted(load)
         {{ error }}
       </p>
       <template v-if="!blocked">
+        <DictionaryPanel v-if="rank === 'school_admin' || rank === 'platform_admin'" />
         <SchoolAccessForm v-if="rank === 'school_admin'" />
         <StudentArchive v-if="rank === 'school_admin'" />
         <ConsentForm v-if="rank === 'school_admin'" />

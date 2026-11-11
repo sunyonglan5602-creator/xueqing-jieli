@@ -1,1 +1,6 @@
-export const GRADES = ["一年级", "二年级", "三年级", "四年级", "五年级", "六年级"]
+import { api } from "./api.js"
+
+export async function loadGradeNames(token) {
+  const data = await api("/api/xueqing/dictionary/grades", { token })
+  return data.items.map((item) => item.name)
+}

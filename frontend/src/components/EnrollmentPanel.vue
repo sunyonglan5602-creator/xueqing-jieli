@@ -1,11 +1,12 @@
 <script setup>
 import { onMounted, ref } from "vue"
 import { api, highestRole } from "../shared/api.js"
-import { GRADES } from "../shared/grades.js"
+import { loadGradeNames } from "../shared/grades.js"
 import { useSessionStore } from "../stores/session.js"
 
 const session = useSessionStore()
 const rank = highestRole(session.record)
+const grades = ref([])
 const classes = ref([])
 const students = ref([])
 const studentId = ref("")
@@ -15,6 +16,7 @@ const grade = ref("四年级")
 const message = ref("")
 
 async function load() {
+  grades.value = await loadGradeNames(session.token)
   classes.value = (await api("/api/collections/classes/records", { token: session.token })).items
   if (rank === "school_admin") {
     students.value = (await api("/api/collections/students/records", { token: session.token })).items
@@ -94,7 +96,7 @@ onMounted(load)
         placeholder="新年级"
       >
         <el-option
-          v-for="item in GRADES"
+          v-for="item in grades"
           :key="item"
           :label="item"
           :value="item"

@@ -1,10 +1,11 @@
 <script setup>
 import { onMounted, ref } from "vue"
 import { api } from "../shared/api.js"
-import { GRADES } from "../shared/grades.js"
+import { loadGradeNames } from "../shared/grades.js"
 import { useSessionStore } from "../stores/session.js"
 
 const session = useSessionStore()
+const grades = ref([])
 const classes = ref([])
 const students = ref([])
 const className = ref("")
@@ -20,6 +21,7 @@ const targetId = ref("")
 const message = ref("")
 
 async function load() {
+  grades.value = await loadGradeNames(session.token)
   classes.value = (await api("/api/collections/classes/records", { token: session.token })).items
   students.value = (await api("/api/collections/students/records", { token: session.token })).items
   if (!classId.value && classes.value[0]) classId.value = classes.value[0].id
@@ -108,7 +110,7 @@ onMounted(load)
         placeholder="班级年级"
       >
         <el-option
-          v-for="item in GRADES"
+          v-for="item in grades"
           :key="item"
           :label="item"
           :value="item"
@@ -139,7 +141,7 @@ onMounted(load)
         placeholder="年级"
       >
         <el-option
-          v-for="item in GRADES"
+          v-for="item in grades"
           :key="item"
           :label="item"
           :value="item"
